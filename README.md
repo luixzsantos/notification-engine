@@ -1,4 +1,3 @@
-Para enviar a atualização do README.md e sincronizar seu projeto no GitHub de uma vez só, execute o bloco de comandos abaixo no terminal do PowerShell.Ele grava a nova versão do arquivo README.md, salva no Git e envia tudo para o seu repositório:PowerShellSet-Content -Path "README.md" -Value @'
 # Webhook & Notification Engine
 
 <p align="center">
