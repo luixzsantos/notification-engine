@@ -1,17 +1,16 @@
 # 🚀 Webhook & Notification Engine
 
-> Engine assíncrona de alto desempenho construída em **Go** para envio de notificações multicanais (**Discord**, **Telegram**, **Gmail** e **Webhooks**) usando **Redis Streams** e **Clean Architecture**.
+> Engine assíncrona de alto desempenho construída em **Go** para envio de notificações multicanais (**Discord**, **Telegram**, **Gmail** e **Webhooks**) usando **Redis Streams**.
 
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev/)
 [![Redis Streams](https://img.shields.io/badge/Redis-Streams-DC382D?style=flat-square&logo=redis&logoColor=white)](https://redis.io/)
-[![Architecture](https://img.shields.io/badge/Architecture-Clean-blue?style=flat-square)](#-arquitetura)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 
 ---
 
 ## ⚡ Visão Geral
 
-O **Notification Engine** desacopla o recebimento de solicitações de notificação da entrega real aos provedores finais. 
+O **Notification Engine** desacopla o recebimento de solicitações de notificação da entrega real aos provedores finais.
 
 A API HTTP valida e enfileira a mensagem no **Redis Streams** em milissegundos (retornando `202 Accepted`), enquanto **Workers independentes** gerenciam o consumo paralelo, entrega e resiliência por meio de goroutines.
 
@@ -25,53 +24,37 @@ A API HTTP valida e enfileira a mensagem no **Redis Streams** em milissegundos (
 
 ## 🏗️ Arquitetura
 
+```text
 [ Cliente / App ]
-│
-▼ (POST /api/v1/notifications)
+       │
+       ▼ (POST /api/v1/notifications)
 ┌──────────────┐
 │   API (Go)   │ ──► [202 Accepted + UUID]
 └──────┬───────┘
-│
-▼ (Publish Event)
+       │
+       ▼ (Publish Event)
 ┌──────────────────────────────────────┐
 │     Redis Stream (Consumer Group)    │
 └──────────────────┬───────────────────┘
-│
-▼ (Worker Goroutines)
+                   │
+                   ▼ (Worker Goroutines)
 ┌──────────────────────────────────────┐
 │            Worker Engine             │
 └──────┬───────────┬───────────┬───────┘
-│           │           │
-▼           ▼           ▼
-[Discord]  [Telegram]    [Gmail]  [Webhook]
-
-
----
-
-## 🛠️ Stack Tecnológica
-
-| Componente | Tecnologia | Função |
-| :--- | :--- | :--- |
-| **Linguagem** | Go 1.22+ | API REST & Worker Engine |
-| **Message Broker** | Redis Streams | Fila assíncrona persistente |
-| **Driver Redis** | `go-redis/v9` | Conexão de alta performance com Redis |
-| **Ambiente** | Docker Compose | Orquestração da infraestrutura local |
-
----
-
-## 📂 Estrutura do Projeto
-
+       │           │           │
+       ▼           ▼           ▼
+   [Discord]  [Telegram]    [Gmail]  [Webhook]
+```
+🛠️ Stack Tecnológica
+Componente	Tecnologia	Função
+Linguagem	Go 1.22+	API REST & Worker Engine
+Message Broker	Redis Streams	Fila assíncrona persistente
+Driver Redis	go-redis/v9	Conexão de alta performance com Redis
+Ambiente	Docker Compose	Orquestração da infraestrutura local
+📂 Estrutura do Projeto
+Plaintext
 .
-├── cmd/
-│   ├── api/          # Entrypoint do produtor HTTP
-│   └── worker/       # Entrypoint do consumidor de fila
-├── internal/
-│   ├── channel/      # Adapters de envio (Discord, Telegram, SMTP, Webhook)
-│   ├── config/       # Gerenciador de variáveis de ambiente
-│   ├── domain/       # Entidades e contratos do sistema
-│   ├── handler/      # Controllers e endpoints HTTP
-│   ├── queue/        # Producer e Consumer do Redis
-│   └── service/      # Regras de negócio da aplicação
+├── main.go           # Aplicação consolidada (API + Worker Engine)
 ├── docker-compose.yml
 └── .env.example
 🚀 Como Executar
@@ -86,17 +69,9 @@ docker compose up -d
 2. Configurar Variáveis de Ambiente
 Bash
 cp .env.example .env
-3. Executar a Aplicação
-Abra dois terminais na raiz do projeto:
-
-Terminal 1 (API HTTP):
-
+3. Executar a Aplicação (Tudo em um único processo)
 Bash
-go run cmd/api/main.go
-Terminal 2 (Worker Consumer):
-
-Bash
-go run cmd/worker/main.go
+go run main.go
 A API estará rodando em http://localhost:8080.
 
 📡 Endpoints da API
@@ -147,8 +122,4 @@ LinkedIn: Luiz Santos
 
 📄 Licença
 Este projeto está sob a licença MIT.
-'@ -Encoding utf8
-
-git add README.md
-git commit -m "docs: adiciona README profissional com diagramas e badges"
-git push -u origin main --force
+'@ -Encoding utf8; git add README.md; git commit -m "docs: adiciona README consolidado"; git push -u origin main --force
