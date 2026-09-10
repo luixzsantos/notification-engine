@@ -174,6 +174,44 @@ git commit -m "..." — Salva as alterações com uma mensagem descritiva.
 
 git push origin main — Sobe tudo diretamente para o repositório no GitHub.
 ```
+---
 
-Abaixo estão as 5 perguntas técnicas mais prováveis que um entrevistador backend faria sobre a sua Notification Engine, junto com a explicação do que ele quer avaliar e a resposta ideal para você dominar a entrevista.1. "Por que você escolheu o Redis Streams em vez de ferramentas como RabbitMQ ou Apache Kafka?"O que o entrevistador quer saber: Se você entende os trade-offs de arquitetura e não usou a ferramenta apenas por "modismo".Como responder:"O Redis Streams foi a escolha ideal para o escopo e orçamento deste projeto porque entrega o recurso de Consumer Groups e persistência de mensagens mantendo um footprint de memória extremamente baixo. O RabbitMQ exige uma infraestrutura mais pesada e gerenciamento de trocas de mensagens (exchanges), enquanto o Kafka é voltado para volumetria massiva de streaming de dados em grande escala. Como o projeto já podia utilizar o Redis para cache ou estado temporário, o Redis Streams trouxe o padrão Publish/Subscribe garantido com menor complexidade operacional e latência na casa dos sub-milissegundos."2. "Como seu sistema lida com falhas no envio de notificações (ex: a API do Discord ficou fora do ar ou deu Rate Limit)?"O que o entrevistador quer saber: Se você pensa em resiliência, tolerância a falhas e consistência eventual.Como responder:"Atualmente, o sistema captura a falha e registra o erro logado sem derrubar a goroutine do worker. Como evolução arquitetural mapped no roadmap, a estratégia ideal é implementar o Retry Pattern com Exponential Backoff utilizando o mecanismo de mensagens pendentes (PENDING List/XPENDING) do próprio Redis Streams. Se após $N$ tentativas o envio continuar falhando (como em um erro 4xx definitivo de validação), a mensagem é movida para uma Dead Letter Queue (DLQ) para auditoria manual sem reprocessamento infinito."3. "Como você garante que uma mesma notificação não seja processada mais de uma vez pelos Workers?"O que o entrevistador quer saber: Se você compreende concorrência, idempotência e entrega de mensagens em sistemas distribuídos (At-Least-Once vs Exactly-Once).Como responder:"Garantimos o isolamento no consumo utilizando Consumer Groups do Redis Streams. Quando um worker lê uma mensagem da stream (XREADGROUP), o Redis marca aquela mensagem especificamente para aquele worker, evitando que outros trabalhadores no mesmo grupo a leiam simultaneamente. Para garantir idempotência total no lado do provedor, as notificações carregam um UUID único gerado na borda (API HTTP), garantindo que no caso de um reenvio o destinatário identifique que se trata do mesmo evento."4. "Como as Goroutines gerenciam o consumo e o encerramento gracioso (Graceful Shutdown) sem perder dados em processamento?"O que o entrevistador quer saber: Seu nível de domínio sobre concorrência nativa em Go e gerenciamento do ciclo de vida da aplicação.Como responder:"As goroutines operam em um loop contínuo de consumo bloqueante leve do Redis Streams. Para evitar condições de corrida (race conditions) e término abrupto em um SIGTERM (fechamento da aplicação), implementamos Graceful Shutdown utilizando context.WithCancel e sync.WaitGroup. Quando o processo é encerrado, o sinal é interceptado, o consumo de novas mensagens é interrompido e a aplicação aguarda o WaitGroup confirmar que as goroutines ativas finalizaram as chamadas HTTP pendentes antes de fechar a conexão com o Redis e encerrar o programa."5. "Como a Clean Architecture ajudou você a estruturar este projeto?"O que o entrevistador quer saber: Se você escreve código sustentável, testável e desacoplado.Como responder:"A Clean Architecture desacoplou completamente as regras de negócio das tecnologias externas. A camada internal/domain define os contratos e interfaces das notificações. Os conectores (Discord, Telegram, SMTP) atuam como Adapters na camada de infraestrutura. Isso significa que, se amanhã eu quiser trocar a API HTTP pelo protocolo gRPC, ou trocar o Redis Streams pelo NATS JetStream, ou adicionar um envio via SMS (Twilio), eu não preciso alterar nenhuma linha da regra de negócio ou do orquestrador de envio — basta criar um novo Adapter que implemente a interface do domínio."
+## 💬 FAQ Técnico & Decisões de Arquitetura
 
+<details>
+<summary><b>1. Por que escolher Redis Streams em vez de RabbitMQ ou Apache Kafka?</b></summary>
+
+O **Redis Streams** foi escolhido pelo seu footprint de memória baixo, simplicidade operacional e excelente suporte nativo a **Consumer Groups** com latência na casa dos sub-milissegundos. 
+- O **RabbitMQ** exigiria uma infraestrutura mais pesada e gerenciamento complexo de *exchanges/queues*.
+- O **Kafka** é projetado para mensageria massiva em escala de terabytes, o que traria complexidade desnecessária para o escopo.
+Como o Redis já é comum em ambientes backend para cache, alavancar o Redis Streams reduziu a complexidade de infraestrutura sem abrir mão do padrão *Publish/Subscribe*.
+</details>
+
+<details>
+<summary><b>2. Como o sistema garante resiliência e trata falhas nos provedores (Discord/Telegram/Gmail)?</b></summary>
+
+A arquitetura desacopla a recepção do processamento. Se uma API externa cair ou retornar *Rate Limit*:
+1. A API principal **não é afetada** e continua respondendo em `< 5ms`.
+2. O evento permanece armazenado e persistido no Redis Streams.
+3. **Evolução do Roadmap:** O sistema usará a lista de pendentes do Redis (`XPENDING`) para aplicar **Retry com Exponential Backoff** e mover mensagens com falhas definitivas para uma **Dead Letter Queue (DLQ)**.
+</details>
+
+<details>
+<summary><b>3. Como é evitado o reprocessamento duplicado da mesma notificação por múltiplos Workers?</b></summary>
+
+Através dos **Consumer Groups do Redis Streams**. Quando um Worker lê uma mensagem usando `XREADGROUP`, o Redis atribui aquela mensagem exclusivamente àquele Worker até que ele envie a confirmação (`XACK`). Além disso, toda notificação recebe um `UUID` único gerado na borda (API HTTP), permitindo a implementação de checagem de idempotência no destino.
+</details>
+
+<details>
+<summary><b>4. Como a Clean Architecture ajuda na manutenção deste projeto?</b></summary>
+
+As regras de negócio e interfaces do sistema residem no núcleo (`internal/domain`), totalmente isoladas de dependências externas. Os conectores (Discord, Telegram, SMTP) e o próprio driver do Redis atuam como **Adapters**.
+- Para adicionar um novo canal (ex: **SMS via Twilio**), basta criar um novo Adapter que implemente a interface do domínio.
+- Para trocar o transportador de fila (ex: **NATS** ou **RabbitMQ**), a lógica de negócios não precisa de **nenhuma alteração**.
+</details>
+
+<details>
+<summary><b>5. Como a concorrência em Go é gerenciada de forma segura (Graceful Shutdown)?</b></summary>
+
+O consumo é feito em paralelo por **Goroutines**. Para evitar perda de dados e *race conditions* ao desligar a aplicação, é utilizado `context.WithCancel` com `sync.WaitGroup`. Ao receber um sinal de término (`SIGTERM`), o sistema para de aceitar novos eventos, aguarda a finalização das goroutines que estão executando requisições HTTP ativas e encerra com segurança.
+</details>
