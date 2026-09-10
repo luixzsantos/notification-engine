@@ -131,3 +131,11 @@ Este projeto está sob a licença MIT.
   <Elicitation label="Adicionar detalhes técnicos do Redis Streams" query="Adicione uma seção explicando detalhadamente como o Consumer Group do Redis Streams funciona neste projeto."/>
   <Elicitation label="Criar um roteiro para apresentação oral" query="Crie um roteiro resumido de fala para eu usar durante a apresentação deste projeto."/>
 </ElicitationsGroup>
+
+```
+git add . — Inclui todas as suas modificações no envio.
+
+git commit -m "..." — Salva as alterações com uma mensagem descritiva.
+
+git push origin main — Sobe tudo diretamente para o repositório no GitHub.
+```
