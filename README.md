@@ -1,9 +1,10 @@
 # 🚀 Webhook & Notification Engine
 
-> Engine assíncrona de alto desempenho construída em **Go** para envio de notificações multicanais (**Discord**, **Telegram**, **Gmail** e **Webhooks**) usando **Redis Streams**.
+> Engine assíncrona de alto desempenho construída em **Go** para envio de notificações multicanais (**Discord**, **Telegram**, **Gmail** e **Webhooks**) usando **Redis Streams** e **Clean Architecture**.
 
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev/)
 [![Redis Streams](https://img.shields.io/badge/Redis-Streams-DC382D?style=flat-square&logo=redis&logoColor=white)](https://redis.io/)
+[![Architecture](https://img.shields.io/badge/Architecture-Clean-blue?style=flat-square)](#-arquitetura)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 
 ---
@@ -45,81 +46,31 @@ A API HTTP valida e enfileira a mensagem no **Redis Streams** em milissegundos (
        ▼           ▼           ▼
    [Discord]  [Telegram]    [Gmail]  [Webhook]
 ```
-🛠️ Stack Tecnológica
-Componente	Tecnologia	Função
-Linguagem	Go 1.22+	API REST & Worker Engine
-Message Broker	Redis Streams	Fila assíncrona persistente
-Driver Redis	go-redis/v9	Conexão de alta performance com Redis
-Ambiente	Docker Compose	Orquestração da infraestrutura local
-📂 Estrutura do Projeto
-Plaintext
-.
+🛠️ Stack TecnológicaComponenteTecnologiaFunçãoLinguagemGo 1.22+API REST & Worker EngineMessage BrokerRedis StreamsFila assíncrona persistenteDriver Redisgo-redis/v9Conexão de alta performance com RedisAmbienteDocker ComposeOrquestração da infraestrutura local📂 Estrutura do ProjetoPlaintext.
 ├── main.go           # Aplicação consolidada (API + Worker Engine)
 ├── docker-compose.yml
 └── .env.example
-🚀 Como Executar
-Pré-requisitos
-Go 1.22+ instalado
-
-Docker e Docker Compose
-
-1. Iniciar Infraestrutura
-Bash
-docker compose up -d
-2. Configurar Variáveis de Ambiente
-Bash
-cp .env.example .env
-3. Executar a Aplicação (Tudo em um único processo)
-Bash
-go run main.go
-A API estará rodando em http://localhost:8080.
-
-📡 Endpoints da API
-POST /api/v1/notifications
-Payload - Discord
-JSON
-{
+🚀 Como ExecutarPré-requisitosGo 1.22+ instaladoDocker e Docker Compose1. Iniciar InfraestruturaBashdocker compose up -d
+2. Configurar Variáveis de AmbienteBashcp .env.example .env
+3. Executar a Aplicação (Tudo em um único processo)Bashgo run main.go
+A API estará rodando em http://localhost:8080.📡 Endpoints da APIPOST /api/v1/notificationsPayload - DiscordJSON{
   "channel": "discord",
   "destination": "[https://discord.com/api/webhooks/SEU_WEBHOOK](https://discord.com/api/webhooks/SEU_WEBHOOK)",
   "message": "🚀 Mensagem de teste da Notification Engine!"
 }
-Payload - Telegram
-JSON
-{
+Payload - TelegramJSON{
   "channel": "telegram",
   "destination": "BOT_TOKEN|CHAT_ID",
   "message": "🤖 Notificação via Telegram!"
 }
-Payload - Gmail (SMTP)
-JSON
-{
+Payload - Gmail (SMTP)JSON{
   "channel": "email",
   "destination": "destino@exemplo.com",
   "message": "📧 Teste de e-mail assíncrono."
 }
-Resposta (202 Accepted)
-JSON
-{
+Resposta (202 Accepted)JSON{
   "id": "f81d4fae-7dec-11d0-a765-00a0c91e6bf6",
   "status": "pending",
   "message": "notificação aceita e enfileirada para processamento"
 }
-🗺️ Roadmap (Próximas Evoluções)
-[ ] Lógica de Retry com Exponential Backoff
-
-[ ] Dead Letter Queue (DLQ) no Redis
-
-[ ] Métrica e monitoramento com Prometheus/Grafana
-
-[ ] Dockerfiles Multi-stage para produção
-
-👨‍💻 Autor
-Feito por Luiz Santos
-
-GitHub: @luixzsantos
-
-LinkedIn: Luiz Santos
-
-📄 Licença
-Este projeto está sob a licença MIT.
-'@ -Encoding utf8; git add README.md; git commit -m "docs: adiciona README consolidado"; git push -u origin main --force
+🗺️ Roadmap (Próximas Evoluções)[ ] Lógica de Retry com Exponential Backoff[ ] Dead Letter Queue (DLQ) no Redis[ ] Métrica e monitoramento com Prometheus/Grafana[ ] Dockerfiles Multi-stage para produção👨‍💻 AutorFeito por Luiz SantosGitHub: @luixzsantosLinkedIn: Luiz Santos📄 LicençaEste projeto está sob a licença MIT.'@ -Encoding utf8; git add README.md; git commit -m "docs: adiciona README consolidado"; git push -u origin main --force
