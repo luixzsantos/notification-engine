@@ -1,10 +1,10 @@
-# 🚀 Notification Engine & Webhooks
+#  Notification Engine & Webhooks
 
 Uma plataforma assíncrona de alto desempenho desenvolvida em **Go** e **Redis Streams**, projetada para receber requisições de notificações de alta concorrência e entregá-las de forma confiável através de múltiplos canais.
 
 ---
 
-## 📌 Por que este projeto foi construído?
+##  Por que este projeto foi construído?
 
 Sistemas modernos precisam enviar confirmações, alertas e e-mails instantaneamente. Contudo, realizar chamadas HTTP diretas a provedores externos (como Discord, Telegram ou Gmail) durante a requisição do usuário introduz **latência extrema** e **pontos únicos de falha**.
 
@@ -42,14 +42,14 @@ O fluxo foi desenhado utilizando o padrão **Producer/Consumer** sob **Clean Arc
        ▼           ▼           ▼
    [Discord]  [Telegram]    [Gmail]  [Webhooks]
 ```
-🛠️ Tecnologias Utilizadas
+ Tecnologias Utilizadas
 Linguagem: Go (1.22+) — Escolhida pela alta performance, baixo consumo de memória e concorrência nativa (Goroutines).
 
 Mensageria: Redis Streams — Garantia de persistência, ordenação e suporte nativo a Consumer Groups.
 
 Infraestrutura: Docker & Docker Compose — Para reprodução rápida do ambiente local.
 
-🚀 Como Executar e Testar
+ Como Executar e Testar
 Pré-requisitos
 Docker e Docker Compose instalados.
 
@@ -72,7 +72,7 @@ Bash
 go run main.go
 A API estará acessível em http://localhost:8080.
 
-🧪 Demonstração Prática (Exemplos de Uso)
+ Demonstração Prática (Exemplos de Uso)
 Você pode testar o envio de mensagens utilizando os comandos curl abaixo no seu terminal:
 
 1. Notificação via Discord (Webhook)
@@ -82,7 +82,7 @@ curl -X POST http://localhost:8080/api/v1/notifications \
   -d '{
     "channel": "discord",
     "destination": "[https://discord.com/api/webhooks/SEU_WEBHOOK_AQUI](https://discord.com/api/webhooks/SEU_WEBHOOK_AQUI)",
-    "message": "🚀 Teste de notificação assíncrona via Discord!"
+    "message": " Teste de notificação assíncrona via Discord!"
   }'
 2. Notificação via Telegram (Bot)
 Bash
@@ -91,7 +91,7 @@ curl -X POST http://localhost:8080/api/v1/notifications \
   -d '{
     "channel": "telegram",
     "destination": "SEU_BOT_TOKEN|SEU_CHAT_ID",
-    "message": "🤖 Mensagem enviada pelo Notification Engine!"
+    "message": " Mensagem enviada pelo Notification Engine!"
   }'
 3. Notificação via E-mail (Gmail/SMTP)
 Bash
@@ -100,7 +100,7 @@ curl -X POST http://localhost:8080/api/v1/notifications \
   -d '{
     "channel": "email",
     "destination": "seu-email@exemplo.com",
-    "message": "📧 Teste de e-mail disparado pela fila do Redis."
+    "message": " Teste de e-mail disparado pela fila do Redis."
   }'
 Resposta Padrão da API (202 Accepted):
 JSON
@@ -109,14 +109,14 @@ JSON
   "status": "pending",
   "message": "notificação aceita e enfileirada para processamento"
 }
-🗺️ Visão de Futuro (Roadmap)
+    Visão de Futuro (Roadmap)
 [ ] Mecanismo de Reentrega (Retry Pattern): Reenvio automático com Exponential Backoff em caso de falha de rede.
 
 [ ] Dead Letter Queue (DLQ): Armazenamento de mensagens que falharam definitivamente para análise posterior.
 
 [ ] Observabilidade: Coleta de métricas em tempo real com Prometheus e dashboards no Grafana.
 
-👨‍💻 Autor
+ Autor
 Desenvolvido por Luiz Santos
 
 GitHub: @luixzsantos
