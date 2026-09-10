@@ -132,6 +132,41 @@ Este projeto está sob a licença MIT.
   <Elicitation label="Criar um roteiro para apresentação oral" query="Crie um roteiro resumido de fala para eu usar durante a apresentação deste projeto."/>
 </ElicitationsGroup>
 
+O que faz o projeto
+A Webhook & Notification Engine é um intermediário (middleware) de alta performance que recebe pedidos de envio de notificações por HTTP e os entrega nos canais finais de forma assíncrona.
+
+Recepção em milissegundos: A API valida a requisição, gera um ID único (UUID), salva o evento no Redis Streams e responde imediatamente com o status 202 Accepted.
+
+Consumo paralelo em background: Workers escritos em Go usam Goroutines e Consumer Groups do Redis para ler a fila simultaneamente e disparar os pacotes para Discord (Webhooks), Telegram (Bot API), Gmail (SMTP) ou Webhooks genéricos.
+
+Isolamento de falhas: Se o Gmail ou a API do Telegram ficarem lentos ou fora do ar, a sua aplicação principal não trava nem perde desempenho.
+
+Por que é útil (O problema real que resolve)
+Em arquiteturas tradicionais, quando uma aplicação precisa enviar uma notificação (por exemplo, um e-mail de boas-vindas ou um alerta no Discord), a chamada é feita de forma síncrona:
+
+Plaintext
+[Cliente] ──► [Sua API] ──► (Aguarda 2-3s a API do Gmail/Discord responder) ──► [Cliente recebe resposta]
+Isso gera problemas graves em produção:
+
+Latência alta para o usuário: O usuário fica esperando a tela carregar enquanto sua aplicação espera o servidor de e-mail responder.
+
+Cascata de falhas: Se o Discord/Telegram passar por instabilidade ou lentidão, as requisições da sua API começam a acumular, esgotam os recursos do servidor e derrubam o sistema inteiro.
+
+Bloqueio de concorrência: Requisições I/O (rede) travam threads. Em momentos de pico (como uma promoção ou disparo em massa), o servidor entra em colapso.
+
+Com a Notification Engine:
+```
+Plaintext
+[Cliente] ──► [Sua API] ──► [Redis Stream] (Responde em < 5ms) ──► [Cliente livre]
+                                  │
+                                  └─► [Worker Go] ──► [Disparo em background]
+```
+Escalabilidade massiva: O Go gerencia milhares de Goroutines consumindo a fila com uso insignificante de memória e CPU.
+
+Resiliência e Persistência: Como as notificações ficam salvas no Redis Streams, nenhuma mensagem é perdida se um worker reiniciar.
+
+Desacoplamento: Para adicionar um novo canal (ex: SMS via Twilio ou Push Notification), basta criar um novo adapter dentro da engine sem alterar uma linha de código da aplicação principal.
+
 ```
 git add . — Inclui todas as suas modificações no envio.
 
