@@ -1,102 +1,154 @@
-# Webhook & Notification Engine
+# 🚀 Webhook & Notification Engine
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Go-1.22+-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="Go Version" />
-  <img src="https://img.shields.io/badge/Redis-Streams-DC382D?style=for-the-badge&logo=redis&logoColor=white" alt="Redis" />
-  <img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" />
-  <img src="https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge" alt="License" />
-</p>
+> Engine assíncrona de alto desempenho construída em **Go** para envio de notificações multicanais (**Discord**, **Telegram**, **Gmail** e **Webhooks**) usando **Redis Streams** e **Clean Architecture**.
 
-Serviço assíncrono de alto desempenho para disparo de notificações multicanais (**Discord**, **Telegram**, **Gmail** e **Webhooks genéricos**), construído em **Go** seguindo os princípios de **Clean Architecture**, com concorrência nativa via goroutines e fila de processamento no **Redis Streams**.
+[![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev/)
+[![Redis Streams](https://img.shields.io/badge/Redis-Streams-DC382D?style=flat-square&logo=redis&logoColor=white)](https://redis.io/)
+[![Architecture](https://img.shields.io/badge/Architecture-Clean-blue?style=flat-square)](#-arquitetura)
+[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 
 ---
 
-## 📌 Índice
+## ⚡ Visão Geral
 
-- [Arquitetura](#-arquitetura)
-- [Stack Tecnológica](#-stack-tecnológica)
-- [Estrutura de Pastas](#-estrutura-de-pastas)
-- [Pré-requisitos](#-pré-requisitos)
-- [Como Rodar o Projeto](#-como-rodar-o-projeto)
-- [Variáveis de Ambiente](#-variáveis-de-ambiente)
-- [Uso da API (Endpoints)](#-uso-da-api-endpoints)
-- [Roadmap (V2)](#-roadmap-v2)
-- [Autor](#-autor)
-- [Licença](#-licença)
+O **Notification Engine** desacopla o recebimento de solicitações de notificação da entrega real aos provedores finais. 
+
+A API HTTP valida e enfileira a mensagem no **Redis Streams** em milissegundos (retornando `202 Accepted`), enquanto **Workers independentes** gerenciam o consumo paralelo, entrega e resiliência por meio de goroutines.
+
+### 🎯 Principais Diferenciais
+- **Desempenho não-bloqueante:** Resposta imediata para a aplicação cliente.
+- **Concorrência Nativa:** Consumo em paralelo via Goroutines e Consumer Groups do Redis.
+- **Arquitetura Modular:** Fácil adição de novos conectores de canal.
+- **Resiliente:** Estrutura preparada para Retry e Dead Letter Queue (DLQ).
 
 ---
 
 ## 🏗️ Arquitetura
 
-```text
-Cliente → POST /api/v1/notifications → API (Go)
-                                         │
-                                         ▼
-                                  Redis Stream (fila)
-                                         │
-                                         ▼
-                                Worker (N goroutines consumidoras)
-                                         │
-                          ┌──────────────┼──────────────┬──────────────┐
-                          ▼              ▼              ▼              ▼
-                       Discord        Telegram        Gmail         Webhook
-                       Webhook        Bot API        (SMTP)        genérico
-Recepção: O cliente faz um POST para /api/v1/notifications.Enfileiramento de Alta Performance: A API valida o payload e publica o evento no Redis Stream, respondendo imediatamente com 202 Accepted e um id de rastreio em milissegundos — sem bloquear o cliente para aguardar a entrega real.Consumo Concorrente: O Worker roda de forma independente, utilizando múltiplas goroutines que consomem o mesmo consumer group do Redis, garantindo processamento paralelo e sem duplicidade de entrega.Conectores Modulares: Cada notificação é roteada ao conector do canal correspondente (discord, telegram, email, webhook), que dispara a requisição HTTP/SMTP.Tratamento de Falhas: Sucesso e falhas são logados; registros pendentes permanecem na Pending Entries List (PEL) do Redis, servindo de base para a futura estratégia de Retry e Dead Letter Queue (DLQ).💻 Stack TecnológicaGo 1.22+ — API REST e Worker desacoplados executados como binários independentes.Redis Streams — Fila de mensagens persistente e assíncrona com suporte a Consumer Groups.net/http — Biblioteca nativa do Go para o servidor HTTP, sem dependências pesadas de frameworks externos.Dependências externas: go-redis/v9 (driver do Redis), google/uuid (geração de IDs únicos) e joho/godotenv (leitura de variáveis locais).📁 Estrutura de PastasPlaintextnotification-engine/
+[ Cliente / App ]
+│
+▼ (POST /api/v1/notifications)
+┌──────────────┐
+│   API (Go)   │ ──► [202 Accepted + UUID]
+└──────┬───────┘
+│
+▼ (Publish Event)
+┌──────────────────────────────────────┐
+│     Redis Stream (Consumer Group)    │
+└──────────────────┬───────────────────┘
+│
+▼ (Worker Goroutines)
+┌──────────────────────────────────────┐
+│            Worker Engine             │
+└──────┬───────────┬───────────┬───────┘
+│           │           │
+▼           ▼           ▼
+[Discord]  [Telegram]    [Gmail]  [Webhook]
+
+
+---
+
+## 🛠️ Stack Tecnológica
+
+| Componente | Tecnologia | Função |
+| :--- | :--- | :--- |
+| **Linguagem** | Go 1.22+ | API REST & Worker Engine |
+| **Message Broker** | Redis Streams | Fila assíncrona persistente |
+| **Driver Redis** | `go-redis/v9` | Conexão de alta performance com Redis |
+| **Ambiente** | Docker Compose | Orquestração da infraestrutura local |
+
+---
+
+## 📂 Estrutura do Projeto
+
+.
 ├── cmd/
-│   ├── api/main.go               # Entry point da API REST (Producer)
-│   └── worker/main.go            # Entry point do Worker (Consumer)
+│   ├── api/          # Entrypoint do produtor HTTP
+│   └── worker/       # Entrypoint do consumidor de fila
 ├── internal/
-│   ├── config/                   # Carregamento e validação das variáveis de ambiente
-│   ├── domain/                   # Entidades, payloads e interfaces de domínio
-│   ├── handler/                  # Controladores e handlers HTTP
-│   ├── service/                  # Regras de negócio da aplicação
-│   ├── queue/                    # Lógica do Producer e Consumer do Redis Streams
-│   └── channel/                  # Conectores de entrega: Discord, Telegram, Gmail, Webhook
-├── docker-compose.yml            # Infraestrutura do Redis para ambiente local
-├── .env.example                  # Modelo de variáveis de ambiente
-├── go.mod                        # Módulos do Go
-└── README.md
-⚙️ Pré-requisitosAntes de iniciar, certifique-se de ter instalado em sua máquina:Go 1.22 ou superiorDocker & Docker Compose🚀 Como Rodar o ProjetoClone o repositório:Bashgit clone [https://github.com/luixzsantos/Webhook-notification-eng.git](https://github.com/luixzsantos/Webhook-notification-eng.git)
-cd Webhook-notification-eng
-Inicie o contêiner do Redis:Bashdocker compose up -d
-Configure o arquivo de variáveis de ambiente:Bashcp .env.example .env
-Edite o arquivo .env para incluir suas credenciais (ex: token do Telegram ou Senha de App do Gmail).Sincronize as dependências do Go:Bashgo mod tidy
-Inicie a API REST (Terminal 1):Bashgo run cmd/api/main.go
-Inicie o Worker Consumidor (Terminal 2):Bashgo run cmd/worker/main.go
-A API estará escutando na porta configurada (padrão: http://localhost:8080).🔐 Variáveis de AmbienteAs configurações do sistema são gerenciadas via variáveis de ambiente. Consulte o arquivo .env.example para referência:VariávelObrigatóriaDescriçãoAPI_PORTNãoPorta do servidor HTTP (default: 8080)REDIS_ADDRSimEndereço de conexão com o Redis (default: localhost:6379)REDIS_STREAM_NAMENãoNome da Stream no Redis (default: notifications:stream)TELEGRAM_BOT_TOKENApenas p/ TelegramToken de acesso do Bot retornado pelo @BotFatherGMAIL_USERNAMEApenas p/ GmailEndereço do e-mail remetente do GmailGMAIL_APP_PASSWORDApenas p/ GmailSenha de App de 16 dígitos gerada no Google (requer 2FA)WORKER_CONCURRENCYNãoNúmero de goroutines operando em paralelo no worker (default: 10)📡 Uso da API (Endpoints)1. Criar e Enfileirar NotificaçãoPOST /api/v1/notifications🔹 Exemplo: Webhook GenéricoBashcurl -X POST http://localhost:8080/api/v1/notifications \
-  -H "Content-Type: application/json" \
-  -d '{
-    "channel": "webhook",
-    "target": "[https://sua-api.com/webhooks/receber](https://sua-api.com/webhooks/receber)",
-    "message": "Mensagem de teste via Webhook genérico!"
-  }'
-🔹 Exemplo: DiscordBashcurl -X POST http://localhost:8080/api/v1/notifications \
-  -H "Content-Type: application/json" \
-  -d '{
-    "channel": "discord",
-    "target": "[https://discord.com/api/webhooks/SEU_WEBHOOK_AQUI](https://discord.com/api/webhooks/SEU_WEBHOOK_AQUI)",
-    "message": "🚀 Notificação enviada para o Discord via Go!"
-  }'
-🔹 Exemplo: TelegramBashcurl -X POST http://localhost:8080/api/v1/notifications \
-  -H "Content-Type: application/json" \
-  -d '{
-    "channel": "telegram",
-    "target": "<CHAT_ID>",
-    "message": "🤖 Mensagem automática enviada via Telegram Bot!"
-  }'
-🔹 Exemplo: Gmail (SMTP)Bashcurl -X POST http://localhost:8080/api/v1/notifications \
-  -H "Content-Type: application/json" \
-  -d '{
-    "channel": "email",
-    "target": "destinatario@exemplo.com",
-    "subject": "Aviso do Sistema",
-    "message": "Sua solicitação foi processada com sucesso!"
-  }'
-✉️ Resposta de Sucesso (202 Accepted):JSON{
-  "id": "441b54a5-3fd7-4657-9b22-b3513d5056a4",
+│   ├── channel/      # Adapters de envio (Discord, Telegram, SMTP, Webhook)
+│   ├── config/       # Gerenciador de variáveis de ambiente
+│   ├── domain/       # Entidades e contratos do sistema
+│   ├── handler/      # Controllers e endpoints HTTP
+│   ├── queue/        # Producer e Consumer do Redis
+│   └── service/      # Regras de negócio da aplicação
+├── docker-compose.yml
+└── .env.example
+🚀 Como Executar
+Pré-requisitos
+Go 1.22+ instalado
+
+Docker e Docker Compose
+
+1. Iniciar Infraestrutura
+Bash
+docker compose up -d
+2. Configurar Variáveis de Ambiente
+Bash
+cp .env.example .env
+3. Executar a Aplicação
+Abra dois terminais na raiz do projeto:
+
+Terminal 1 (API HTTP):
+
+Bash
+go run cmd/api/main.go
+Terminal 2 (Worker Consumer):
+
+Bash
+go run cmd/worker/main.go
+A API estará rodando em http://localhost:8080.
+
+📡 Endpoints da API
+POST /api/v1/notifications
+Payload - Discord
+JSON
+{
+  "channel": "discord",
+  "destination": "[https://discord.com/api/webhooks/SEU_WEBHOOK](https://discord.com/api/webhooks/SEU_WEBHOOK)",
+  "message": "🚀 Mensagem de teste da Notification Engine!"
+}
+Payload - Telegram
+JSON
+{
+  "channel": "telegram",
+  "destination": "BOT_TOKEN|CHAT_ID",
+  "message": "🤖 Notificação via Telegram!"
+}
+Payload - Gmail (SMTP)
+JSON
+{
+  "channel": "email",
+  "destination": "destino@exemplo.com",
+  "message": "📧 Teste de e-mail assíncrono."
+}
+Resposta (202 Accepted)
+JSON
+{
+  "id": "f81d4fae-7dec-11d0-a765-00a0c91e6bf6",
   "status": "pending",
   "message": "notificação aceita e enfileirada para processamento"
 }
-2. HealthcheckGET /healthRetorna o status da API para monitoramento de disponibilidade.Bashcurl -X GET http://localhost:8080/health
-🛣️ Roadmap (V2)[ ] Lógica de Retry com Exponential Backoff e Dead Letter Queue (DLQ) para mensagens com erro persistente.[ ] Persistência de auditoria e histórico de envios utilizando PostgreSQL ou SQLite.[ ] Implementação de Rate Limiting por canal e por destino.[ ] Construção de imagens Docker multi-stage e atualização do docker-compose.yml para rodar API e Worker em contêineres.👨‍💻 AutorDesenvolvido por Luiz Santos.GitHub: @luixzsantosLinkedIn: Luiz Santos📜 LicençaEste projeto está sob a licença MIT.'@ -Encoding utf8git add .git commit -m "docs: adicionado README.md com documentacao completa e autor"git push -u origin main --force
-Ao terminar a execução desses comandos, basta atualizar a página do seu repositório no GitHub para ver a nova documentação publicada.
+🗺️ Roadmap (Próximas Evoluções)
+[ ] Lógica de Retry com Exponential Backoff
+
+[ ] Dead Letter Queue (DLQ) no Redis
+
+[ ] Métrica e monitoramento com Prometheus/Grafana
+
+[ ] Dockerfiles Multi-stage para produção
+
+👨‍💻 Autor
+Feito por Luiz Santos
+
+GitHub: @luixzsantos
+
+LinkedIn: Luiz Santos
+
+📄 Licença
+Este projeto está sob a licença MIT.
+'@ -Encoding utf8
+
+git add README.md
+git commit -m "docs: adiciona README profissional com diagramas e badges"
+git push -u origin main --force
