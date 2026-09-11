@@ -1,217 +1,159 @@
-# 🚀 Notification Engine & Webhooks
+# Webhook & Notification Engine
 
-Uma plataforma assíncrona de alto desempenho desenvolvida em **Go** e **Redis Streams**, projetada para receber requisições de notificações de alta concorrência e entregá-las de forma confiável através de múltiplos canais.
+Serviço assíncrono de alto desempenho para disparo de notificações multicanais (**Discord**, **Telegram**, **Gmail** e **Webhooks genéricos**), construído em **Go** seguindo os princípios de **Clean Architecture**, com concorrência nativa via goroutines e fila de processamento no **Redis Streams**.
 
----
+> 📘 **Primeira vez rodando o projeto?** Siga o [Guia Passo a Passo](GUIA-PASSO-A-PASSO.md) — cobre desde a instalação do Go/Docker até o teste de cada canal, com solução dos erros mais comuns.
 
-## 📌 Por que este projeto foi construído?
+## Índice
 
-Sistemas modernos precisam enviar confirmações, alertas e e-mails instantaneamente. Contudo, realizar chamadas HTTP diretas a provedores externos (como Discord, Telegram ou Gmail) durante a requisição do usuário introduz **latência extrema** e **pontos únicos de falha**.
+- [Arquitetura](#arquitetura)
+- [Stack](#stack)
+- [Estrutura de pastas](#estrutura-de-pastas)
+- [Pré-requisitos](#pré-requisitos)
+- [Como rodar](#como-rodar)
+- [Variáveis de ambiente](#variáveis-de-ambiente)
+- [Uso da API](#uso-da-api)
+- [Roadmap (V2)](#roadmap-v2)
 
-A **Notification Engine** resolve esse problema desacoplando a recepção do envio:
-- A API aceita a solicitação e responde ao cliente em **menos de 5ms**.
-- O processamento pesado e a comunicação com as APIs externas acontecem em segundo plano via **Workers assíncronos**.
+## Arquitetura
 
----
-
-## ⚙️ Funcionamento da Arquitetura
-
-O fluxo foi desenhado utilizando o padrão **Producer/Consumer** sob **Clean Architecture**:
-
-```text
-[ Cliente / App ]
-       │
-       │  1. Request (POST /api/v1/notifications)
-       ▼
-┌──────────────┐
-│   API (Go)   │ ──► Resposta Imediata: [202 Accepted + ID do Evento]
-└──────┬───────┘
-       │
-       │  2. Publica evento no Stream
-       ▼
-┌──────────────────────────────────────┐
-│     Redis Stream (Consumer Group)    │
-└──────────────────┬───────────────────┘
-                   │
-                   │  3. Consumo paralelo via Goroutines
-                   ▼
-┌──────────────────────────────────────┐
-│            Worker Engine             │
-└──────┬───────────┬───────────┬───────┘
-       │           │           │
-       ▼           ▼           ▼
-   [Discord]  [Telegram]    [Gmail]  [Webhooks]
 ```
-🛠️ Tecnologias Utilizadas
-Linguagem: Go (1.22+) — Escolhida pela alta performance, baixo consumo de memória e concorrência nativa (Goroutines).
+Cliente → POST /api/v1/notifications → API (Go)
+                                          │
+                                          ▼
+                                 Redis Stream (fila)
+                                          │
+                                          ▼
+                          Worker (N goroutines consumidoras)
+                                          │
+                              ┌───────────┼───────────┬────────────┐
+                              ▼           ▼           ▼            ▼
+                          Discord     Telegram      Gmail       Webhook
+                          Webhook     Bot API       (SMTP)      genérico
+```
 
-Mensageria: Redis Streams — Garantia de persistência, ordenação e suporte nativo a Consumer Groups.
+1. O cliente faz um `POST` para `/api/v1/notifications`.
+2. A API valida o payload e publica o evento no Redis Stream, respondendo **202 Accepted** com um `id` de rastreio — em milissegundos, sem esperar a entrega real.
+3. O Worker roda de forma independente, com múltiplas goroutines consumindo o mesmo *consumer group* do Redis, garantindo processamento paralelo sem duplicidade de entrega.
+4. Cada notificação é roteada ao conector do canal correspondente, que dispara a requisição HTTP (ou SMTP, no caso do Gmail).
+5. Sucesso ou falha são logados; falhas permanecem na *Pending Entries List* do Redis, servindo de base para a estratégia de retry/DLQ da V2.
 
-Infraestrutura: Docker & Docker Compose — Para reprodução rápida do ambiente local.
+## Stack
 
-🚀 Como Executar e Testar
-Pré-requisitos
-Docker e Docker Compose instalados.
+- **Go 1.22+** — API e Worker como binários independentes
+- **Redis Streams** — fila de processamento assíncrono com consumer groups
+- **net/http** (stdlib) — API REST, sem framework externo
+- **go-redis/v9**, **google/uuid**, **joho/godotenv** — únicas dependências externas
 
-Go 1.22 ou superior (opcional, caso rode fora do Docker).
+## Estrutura de pastas
 
-1. Subir a Infraestrutura
-Clone o repositório e inicie os containers do Redis:
+```
+notification-engine/
+├── cmd/
+│   ├── api/main.go              # Entry point da API REST
+│   └── worker/main.go           # Entry point do worker consumidor
+├── internal/
+│   ├── config/                  # Leitura de variáveis de ambiente
+│   ├── domain/                  # Entidades e interfaces do domínio
+│   ├── handler/                 # Controladores HTTP
+│   ├── service/                 # Regras de negócio
+│   ├── queue/                   # Producer/Consumer do Redis Streams
+│   └── channel/                 # Conectores: discord, telegram, gmail, webhook
+├── docker-compose.yml           # Redis local para desenvolvimento
+├── go.mod
+└── .env.example
+```
 
-Bash
-git clone [https://github.com/luixzsantos/notification-engine.git](https://github.com/luixzsantos/notification-engine.git)
-cd notification-engine
+## Pré-requisitos
+
+- [Go 1.22+](https://go.dev/dl/)
+- [Docker + Docker Compose](https://www.docker.com/products/docker-desktop/)
+
+## Como rodar
+
+```bash
+# 1. Subir o Redis local
 docker compose up -d
-2. Configurar as Variáveis de Ambiente
-Crie o arquivo .env com base no modelo de exemplo:
 
-Bash
+# 2. Configurar variáveis de ambiente
 cp .env.example .env
-3. Rodar a Aplicação
-Bash
-go run main.go
-A API estará acessível em http://localhost:8080.
+# edite o .env com suas credenciais (Telegram/Gmail), se for usar esses canais
 
-🧪 Demonstração Prática (Exemplos de Uso)
-Você pode testar o envio de mensagens utilizando os comandos curl abaixo no seu terminal:
+# 3. Baixar dependências
+go mod tidy
 
-1. Notificação via Discord (Webhook)
-Bash
+# 4. Rodar a API (terminal 1)
+go run cmd/api/main.go
+
+# 5. Rodar o Worker (terminal 2)
+go run cmd/worker/main.go
+```
+
+A API sobe em `http://localhost:8080` por padrão.
+
+## Variáveis de ambiente
+
+Veja todos os detalhes e defaults em [`.env.example`](.env.example). Resumo:
+
+| Variável | Obrigatória para | Descrição |
+|---|---|---|
+| `REDIS_ADDR` | Sempre | Endereço do Redis (default: `localhost:6379`) |
+| `TELEGRAM_BOT_TOKEN` | Canal `telegram` | Token gerado pelo [@BotFather](https://t.me/BotFather) |
+| `GMAIL_USERNAME` / `GMAIL_APP_PASSWORD` | Canal `email` | Conta Gmail e [senha de app](https://myaccount.google.com/apppasswords) (requer 2FA ativo) |
+| `WORKER_CONCURRENCY` | Opcional | Nº de goroutines consumidoras (default: `10`) |
+
+## Uso da API
+
+### `POST /api/v1/notifications`
+
+**Webhook genérico**
+```bash
 curl -X POST http://localhost:8080/api/v1/notifications \
   -H "Content-Type: application/json" \
-  -d '{
-    "channel": "discord",
-    "destination": "[https://discord.com/api/webhooks/SEU_WEBHOOK_AQUI](https://discord.com/api/webhooks/SEU_WEBHOOK_AQUI)",
-    "message": "🚀 Teste de notificação assíncrona via Discord!"
-  }'
-2. Notificação via Telegram (Bot)
-Bash
+  -d '{"channel":"webhook","target":"https://example.com/hook","message":"Olá!"}'
+```
+
+**Discord**
+```bash
 curl -X POST http://localhost:8080/api/v1/notifications \
   -H "Content-Type: application/json" \
-  -d '{
-    "channel": "telegram",
-    "destination": "SEU_BOT_TOKEN|SEU_CHAT_ID",
-    "message": "🤖 Mensagem enviada pelo Notification Engine!"
-  }'
-3. Notificação via E-mail (Gmail/SMTP)
-Bash
+  -d '{"channel":"discord","target":"https://discord.com/api/webhooks/...","message":"Olá!"}'
+```
+
+**Telegram**
+```bash
 curl -X POST http://localhost:8080/api/v1/notifications \
   -H "Content-Type: application/json" \
-  -d '{
-    "channel": "email",
-    "destination": "seu-email@exemplo.com",
-    "message": "📧 Teste de e-mail disparado pela fila do Redis."
-  }'
-Resposta Padrão da API (202 Accepted):
-JSON
+  -d '{"channel":"telegram","target":"<chat_id>","message":"Olá!"}'
+```
+
+**Gmail**
+```bash
+curl -X POST http://localhost:8080/api/v1/notifications \
+  -H "Content-Type: application/json" \
+  -d '{"channel":"email","target":"destinatario@exemplo.com","subject":"Assunto","message":"Olá!"}'
+```
+
+**Resposta (202 Accepted)**
+```json
 {
-  "id": "a1b2c3d4-e5f6-7890-abcd-1234567890ab",
+  "id": "441b54a5-3fd7-4657-9b22-b3513d5056a4",
   "status": "pending",
   "message": "notificação aceita e enfileirada para processamento"
 }
-🗺️ Visão de Futuro (Roadmap)
-[ ] Mecanismo de Reentrega (Retry Pattern): Reenvio automático com Exponential Backoff em caso de falha de rede.
-
-[ ] Dead Letter Queue (DLQ): Armazenamento de mensagens que falharam definitivamente para análise posterior.
-
-[ ] Observabilidade: Coleta de métricas em tempo real com Prometheus e dashboards no Grafana.
-
-👨‍💻 Autor
-Desenvolvido por Luiz Santos
-
-GitHub: @luixzsantos
-
-LinkedIn: Luiz Santos
-
-📄 Licença
-Este projeto está sob a licença MIT.
-
-
-<ElicitationsGroup message="Precisa de algum ajuste específico para a sua apresentação?">
-  <Elicitation label="Adicionar detalhes técnicos do Redis Streams" query="Adicione uma seção explicando detalhadamente como o Consumer Group do Redis Streams funciona neste projeto."/>
-  <Elicitation label="Criar um roteiro para apresentação oral" query="Crie um roteiro resumido de fala para eu usar durante a apresentação deste projeto."/>
-</ElicitationsGroup>
-
-O que faz o projeto
-A Webhook & Notification Engine é um intermediário (middleware) de alta performance que recebe pedidos de envio de notificações por HTTP e os entrega nos canais finais de forma assíncrona.
-
-Recepção em milissegundos: A API valida a requisição, gera um ID único (UUID), salva o evento no Redis Streams e responde imediatamente com o status 202 Accepted.
-
-Consumo paralelo em background: Workers escritos em Go usam Goroutines e Consumer Groups do Redis para ler a fila simultaneamente e disparar os pacotes para Discord (Webhooks), Telegram (Bot API), Gmail (SMTP) ou Webhooks genéricos.
-
-Isolamento de falhas: Se o Gmail ou a API do Telegram ficarem lentos ou fora do ar, a sua aplicação principal não trava nem perde desempenho.
-
-Por que é útil (O problema real que resolve)
-Em arquiteturas tradicionais, quando uma aplicação precisa enviar uma notificação (por exemplo, um e-mail de boas-vindas ou um alerta no Discord), a chamada é feita de forma síncrona:
-
-Plaintext
-[Cliente] ──► [Sua API] ──► (Aguarda 2-3s a API do Gmail/Discord responder) ──► [Cliente recebe resposta]
-Isso gera problemas graves em produção:
-
-Latência alta para o usuário: O usuário fica esperando a tela carregar enquanto sua aplicação espera o servidor de e-mail responder.
-
-Cascata de falhas: Se o Discord/Telegram passar por instabilidade ou lentidão, as requisições da sua API começam a acumular, esgotam os recursos do servidor e derrubam o sistema inteiro.
-
-Bloqueio de concorrência: Requisições I/O (rede) travam threads. Em momentos de pico (como uma promoção ou disparo em massa), o servidor entra em colapso.
-
-Com a Notification Engine:
 ```
-Plaintext
-[Cliente] ──► [Sua API] ──► [Redis Stream] (Responde em < 5ms) ──► [Cliente livre]
-                                  │
-                                  └─► [Worker Go] ──► [Disparo em background]
-```
-Escalabilidade massiva: O Go gerencia milhares de Goroutines consumindo a fila com uso insignificante de memória e CPU.
 
-Resiliência e Persistência: Como as notificações ficam salvas no Redis Streams, nenhuma mensagem é perdida se um worker reiniciar.
+### `GET /health`
 
-Desacoplamento: Para adicionar um novo canal (ex: SMS via Twilio ou Push Notification), basta criar um novo adapter dentro da engine sem alterar uma linha de código da aplicação principal.
+Healthcheck simples, retorna `{"status": "ok"}`.
 
-```
-git add . — Inclui todas as suas modificações no envio.
+## Roadmap (V2)
 
-git commit -m "..." — Salva as alterações com uma mensagem descritiva.
+- [ ] Retry com Exponential Backoff + Dead Letter Queue (DLQ)
+- [ ] Persistência histórica de auditoria (PostgreSQL/SQLite)
+- [ ] Rate limiting por canal/destino
+- [ ] Dashboard de métricas de envio
 
-git push origin main — Sobe tudo diretamente para o repositório no GitHub.
-```
----
+## Licença
 
-## 💬 FAQ Técnico & Decisões de Arquitetura
-
-<details>
-<summary><b>1. Por que escolher Redis Streams em vez de RabbitMQ ou Apache Kafka?</b></summary>
-
-O **Redis Streams** foi escolhido pelo seu footprint de memória baixo, simplicidade operacional e excelente suporte nativo a **Consumer Groups** com latência na casa dos sub-milissegundos. 
-- O **RabbitMQ** exigiria uma infraestrutura mais pesada e gerenciamento complexo de *exchanges/queues*.
-- O **Kafka** é projetado para mensageria massiva em escala de terabytes, o que traria complexidade desnecessária para o escopo.
-Como o Redis já é comum em ambientes backend para cache, alavancar o Redis Streams reduziu a complexidade de infraestrutura sem abrir mão do padrão *Publish/Subscribe*.
-</details>
-
-<details>
-<summary><b>2. Como o sistema garante resiliência e trata falhas nos provedores (Discord/Telegram/Gmail)?</b></summary>
-
-A arquitetura desacopla a recepção do processamento. Se uma API externa cair ou retornar *Rate Limit*:
-1. A API principal **não é afetada** e continua respondendo em `< 5ms`.
-2. O evento permanece armazenado e persistido no Redis Streams.
-3. **Evolução do Roadmap:** O sistema usará a lista de pendentes do Redis (`XPENDING`) para aplicar **Retry com Exponential Backoff** e mover mensagens com falhas definitivas para uma **Dead Letter Queue (DLQ)**.
-</details>
-
-<details>
-<summary><b>3. Como é evitado o reprocessamento duplicado da mesma notificação por múltiplos Workers?</b></summary>
-
-Através dos **Consumer Groups do Redis Streams**. Quando um Worker lê uma mensagem usando `XREADGROUP`, o Redis atribui aquela mensagem exclusivamente àquele Worker até que ele envie a confirmação (`XACK`). Além disso, toda notificação recebe um `UUID` único gerado na borda (API HTTP), permitindo a implementação de checagem de idempotência no destino.
-</details>
-
-<details>
-<summary><b>4. Como a Clean Architecture ajuda na manutenção deste projeto?</b></summary>
-
-As regras de negócio e interfaces do sistema residem no núcleo (`internal/domain`), totalmente isoladas de dependências externas. Os conectores (Discord, Telegram, SMTP) e o próprio driver do Redis atuam como **Adapters**.
-- Para adicionar um novo canal (ex: **SMS via Twilio**), basta criar um novo Adapter que implemente a interface do domínio.
-- Para trocar o transportador de fila (ex: **NATS** ou **RabbitMQ**), a lógica de negócios não precisa de **nenhuma alteração**.
-</details>
-
-<details>
-<summary><b>5. Como a concorrência em Go é gerenciada de forma segura (Graceful Shutdown)?</b></summary>
-
-O consumo é feito em paralelo por **Goroutines**. Para evitar perda de dados e *race conditions* ao desligar a aplicação, é utilizado `context.WithCancel` com `sync.WaitGroup`. Ao receber um sinal de término (`SIGTERM`), o sistema para de aceitar novos eventos, aguarda a finalização das goroutines que estão executando requisições HTTP ativas e encerra com segurança.
-</details>
+[MIT](LICENSE)
