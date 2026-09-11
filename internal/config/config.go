@@ -21,11 +21,18 @@ type Config struct {
 
 	TelegramBotToken string
 
-	GmailSMTPHost   string
-	GmailSMTPPort   string
-	GmailUsername   string
+	GmailSMTPHost    string
+	GmailSMTPPort    string
+	GmailUsername    string
 	GmailAppPassword string
-	GmailFromName   string
+	GmailFromName    string
+
+	// Alvos padrão (opcionais): usados quando o "target" não é informado
+	// na requisição, útil para testes rápidos sem precisar colar a URL/ID
+	// toda vez.
+	DefaultDiscordTarget  string
+	DefaultTelegramTarget string
+	DefaultEmailTarget    string
 
 	HTTPClientTimeoutSeconds int
 	WorkerConcurrency        int
@@ -55,6 +62,10 @@ func Load() *Config {
 		GmailUsername:    getEnv("GMAIL_USERNAME", ""),
 		GmailAppPassword: getEnv("GMAIL_APP_PASSWORD", ""),
 		GmailFromName:    getEnv("GMAIL_FROM_NAME", ""),
+
+		DefaultDiscordTarget:  getEnv("DEFAULT_DISCORD_TARGET", ""),
+		DefaultTelegramTarget: getEnv("DEFAULT_TELEGRAM_TARGET", ""),
+		DefaultEmailTarget:    getEnv("DEFAULT_EMAIL_TARGET", ""),
 
 		HTTPClientTimeoutSeconds: getEnvAsInt("HTTP_CLIENT_TIMEOUT_SECONDS", 10),
 		WorkerConcurrency:        getEnvAsInt("WORKER_CONCURRENCY", 10),

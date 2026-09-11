@@ -36,7 +36,6 @@ func NewRegistry(httpTimeout time.Duration, telegramBotToken string, gmailCfg Gm
 
 	registry.register(NewWebhookSender(client))
 	registry.register(NewDiscordSender(client))
-	registry.register(NewTelegramSender(client, telegramBotToken))
 	registry.register(NewGmailSender(
 		gmailCfg.Host,
 		gmailCfg.Port,

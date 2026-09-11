@@ -25,11 +25,15 @@ type CreateNotificationInput struct {
 // (HTTP) nem de infraestrutura (Redis) — depende apenas da abstração
 // domain.Producer, respeitando a Clean Architecture.
 type NotificationService struct {
-	producer domain.Producer
+	producer       domain.Producer
+	defaultTargets map[domain.ChannelType]string
 }
 
-func NewNotificationService(producer domain.Producer) *NotificationService {
-	return &NotificationService{producer: producer}
+// NewNotificationService recebe opcionalmente um mapa de "targets padrão"
+// por canal (ex: a URL fixa de um webhook do Discord). Quando a requisição
+// não informar "target", esse default é usado — útil para testes rápidos.
+func NewNotificationService(producer domain.Producer, defaultTargets map[domain.ChannelType]string) *NotificationService {
+	return &NotificationService{producer: producer, defaultTargets: defaultTargets}
 }
 
 // CreateNotification valida o input, monta a entidade Notification e a
@@ -39,10 +43,17 @@ func NewNotificationService(producer domain.Producer) *NotificationService {
 func (s *NotificationService) CreateNotification(ctx context.Context, input CreateNotificationInput) (*domain.Notification, error) {
 	now := time.Now().UTC()
 
+	target := input.Target
+	if target == "" {
+		if defaultTarget, ok := s.defaultTargets[input.Channel]; ok {
+			target = defaultTarget
+		}
+	}
+
 	notification := &domain.Notification{
 		ID:        uuid.NewString(),
 		Channel:   input.Channel,
-		Target:    input.Target,
+		Target:    target,
 		Message:   input.Message,
 		Payload:   input.Payload,
 		Headers:   input.Headers,
