@@ -1,6 +1,6 @@
 # Webhook & Notification Engine
 
-Serviço assíncrono de alto desempenho para disparo de notificações multicanais (**Discord**, **Telegram**, **Gmail** e **Webhooks genéricos**), construído em **Go** seguindo os princípios de **Clean Architecture**, com concorrência nativa via goroutines e fila de processamento no **Redis Streams**.
+Serviço assíncrono de alto desempenho para disparo de notificações multicanais (**Discord**, **Gmail** e **Webhooks genéricos**), construído em **Go** seguindo os princípios de **Clean Architecture**, com concorrência nativa via goroutines e fila de processamento no **Redis Streams**.
 
 > 📘 **Primeira vez rodando o projeto?** Siga o [Guia Passo a Passo](GUIA-PASSO-A-PASSO.md) — cobre desde a instalação do Go/Docker até o teste de cada canal, com solução dos erros mais comuns.
 
@@ -26,10 +26,10 @@ Cliente → POST /api/v1/notifications → API (Go)
                                           ▼
                           Worker (N goroutines consumidoras)
                                           │
-                              ┌───────────┼───────────┬────────────┐
-                              ▼           ▼           ▼            ▼
-                          Discord     Telegram      Gmail       Webhook
-                          Webhook     Bot API       (SMTP)      genérico
+                              ┌───────────┼───────────┬
+                              ▼           ▼           ▼            
+                          Discord      Gmail         Webhook
+                          Webhook                 (SMTP)genérico
 ```
 
 1. O cliente faz um `POST` para `/api/v1/notifications`.
