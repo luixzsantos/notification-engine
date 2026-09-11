@@ -27,9 +27,6 @@ type Config struct {
 	GmailAppPassword string
 	GmailFromName    string
 
-	// Alvos padrão (opcionais): usados quando o "target" não é informado
-	// na requisição, útil para testes rápidos sem precisar colar a URL/ID
-	// toda vez.
 	DefaultDiscordTarget  string
 	DefaultTelegramTarget string
 	DefaultEmailTarget    string
