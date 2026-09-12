@@ -1,18 +1,17 @@
 @echo off
 REM iniciar.bat
-REM Sobe o Redis, a API e o Worker automaticamente.
-REM So dar 2 cliques neste arquivo no Explorador de Arquivos.
+REM Sobe Redis, API, Worker e abre a interface web.
 
 cd /d "%~dp0"
 
 echo ==============================================
-echo   Subindo o Redis (Docker)...
+echo   Subindo Redis + PostgreSQL + Prometheus (Docker)...
 echo ==============================================
 docker compose up -d
 
 if errorlevel 1 (
     echo.
-    echo [ERRO] Nao foi possivel subir o Redis.
+    echo [ERRO] Nao foi possivel subir a infraestrutura.
     echo Verifique se o Docker Desktop esta aberto e rodando.
     echo.
     pause
@@ -34,14 +33,22 @@ start "Notification Engine - Worker" cmd /k "cd /d "%~dp0" && go run cmd/worker/
 
 timeout /t 2 /nobreak >nul
 
+echo ==============================================
+echo   Abrindo a interface web...
+echo ==============================================
+
+start "" "%~dp0main.html"
+
 echo.
 echo ==============================================
 echo   Tudo no ar!
-echo   API:   http://localhost:8080
-echo   Redis: localhost:6379
+echo   API:        http://localhost:8080
+echo   Metricas:   http://localhost:8080/metrics (API) e :9091/metrics (worker)
+echo   Prometheus: http://localhost:9090
+echo   Dashboard:  dashboard.html
 echo ==============================================
 echo.
-echo Duas janelas novas foram abertas (API e Worker).
-echo Pode fechar esta janela ou deixar aberta, tanto faz.
+echo Duas janelas novas foram abertas:
+echo API e Worker.
 echo.
 pause

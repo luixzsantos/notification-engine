@@ -18,7 +18,7 @@ echo ==============================================
 taskkill /IM main.exe /F >nul 2>&1
 
 echo ==============================================
-echo   Derrubando o Redis (docker compose down)...
+echo   Derrubando Redis + PostgreSQL + Prometheus (docker compose down)...
 echo ==============================================
 docker compose down
 

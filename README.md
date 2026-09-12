@@ -1,8 +1,6 @@
 # 📨 Webhook & Notification Engine
 
-Serviço assíncrono de alto desempenho para disparo de notificações multicanais (**Discord**, **Telegram**, **Gmail** e **Webhooks genéricos**), construído em **Go** seguindo os princípios de **Clean Architecture**, com concorrência nativa via goroutines e fila de processamento no **Redis Streams**.
-
-> 📘 **Primeira vez rodando o projeto?** Siga o [Guia Passo a Passo](GUIA-PASSO-A-PASSO.md) — cobre desde a instalação do Go/Docker até o teste de cada canal, com solução dos erros mais comuns.
+Serviço assíncrono de alto desempenho para disparo de notificações multicanais (**Discord**, **Telegram**, **Gmail** e **Webhooks genéricos**), construído em **Go** seguindo os princípios de **Clean Architecture**, com concorrência nativa via goroutines, fila de processamento no **Redis Streams**, persistência/auditoria em **PostgreSQL**, retry com backoff exponencial, rate limiting por canal e métricas Prometheus.
 
 ---
 
@@ -15,9 +13,12 @@ Serviço assíncrono de alto desempenho para disparo de notificações multicana
 - [Pré-requisitos](#pré-requisitos)
 - [Como rodar](#como-rodar)
 - [Variáveis de ambiente](#variáveis-de-ambiente)
-- [Formas de enviar notificações](#formas-de-enviar-notificações)
 - [Uso da API](#uso-da-api)
-- [Roadmap (V2)](#roadmap-v2)
+- [Retry e Dead Letter Queue (DLQ)](#retry-e-dead-letter-queue-dlq)
+- [Rate limiting](#rate-limiting)
+- [Métricas (Prometheus)](#métricas-prometheus)
+- [Bot do Telegram](#bot-do-telegram)
+- [Dashboard](#dashboard)
 - [Licença](#licença)
 
 ---
@@ -26,32 +27,42 @@ Serviço assíncrono de alto desempenho para disparo de notificações multicana
 
 Em resumo: é um "correio automático". Você manda um pedido de notificação pra API, ela responde na hora (sem te fazer esperar a entrega de verdade), guarda o pedido numa fila, e um processo separado (o **Worker**) entrega essa notificação no Discord, Telegram, Gmail ou qualquer Webhook — em segundo plano, com múltiplas entregas acontecendo em paralelo.
 
-Essa separação entre "receber o pedido" (API) e "entregar de verdade" (Worker) é o que permite o sistema aguentar picos de volume sem travar, e continuar funcionando mesmo se um canal específico estiver fora do ar.
+Essa separação entre "receber o pedido" (API) e "entregar de verdade" (Worker) é o que permite o sistema aguentar picos de volume sem travar, e continuar funcionando mesmo se um canal específico estiver fora do ar. Quando um envio falha, a notificação não é descartada: o worker agenda novas tentativas com backoff exponencial e, se todas falharem, ela vai para uma DLQ consultável via API, bot ou dashboard.
 
 ---
 
 ## Arquitetura
 
 ```
-Cliente → POST /api/v1/notifications → API (Go)
-                                          │
-                                          ▼
-                                 Redis Stream (fila)
-                                          │
-                                          ▼
-                          Worker (N goroutines consumidoras)
-                                          │
-                              ┌───────────┼───────────┬────────────┐
-                              ▼           ▼           ▼            ▼
-                          Discord     Telegram      Gmail       Webhook
-                          Webhook     Bot API       (SMTP)      genérico
+Cliente → POST /api/v1/notifications → API (Go) ── grava ──→ PostgreSQL
+                                          │                    (estado/auditoria)
+                                          ▼                        ▲
+                                 Redis Stream (fila)                │
+                                          │                         │
+                                          ▼                         │
+                          Worker (N goroutines consumidoras)        │
+                              │           │           │      │      │
+                          rate limit  dispatcher  atualiza status ──┘
+                              │           │
+                ┌─────────────┼───────────┼────────────┐
+                ▼             ▼           ▼             ▼
+            Discord       Telegram      Gmail        Webhook
+            Webhook       Bot API       (SMTP)       genérico
+
+  Falha? → agenda retry (backoff exponencial) ou move para DLQ
+              │
+              ▼
+      RetryPoller (goroutine do worker, varre o Postgres a cada N segundos)
+              │
+              └──→ reenfileira no Redis Stream quando o retry vence
 ```
 
-1. O cliente faz um `POST` para `/api/v1/notifications` (via `curl`, `Invoke-RestMethod`, ou a interface web `enviar.html`).
-2. A API valida o payload e publica o evento no Redis Stream, respondendo **202 Accepted** com um `id` de rastreio — em milissegundos, sem esperar a entrega real.
-3. O Worker roda de forma independente, com múltiplas goroutines consumindo o mesmo *consumer group* do Redis, garantindo processamento paralelo sem duplicidade de entrega.
-4. Cada notificação é roteada ao conector do canal correspondente, que dispara a requisição HTTP (ou SMTP, no caso do Gmail).
-5. Sucesso ou falha são logados no terminal do Worker.
+1. O cliente faz um `POST` para `/api/v1/notifications` (via `curl`, `Invoke-RestMethod`, ou a interface web `main.html`).
+2. A API valida o payload, **persiste no PostgreSQL** (status `pending`) e publica o evento no Redis Stream, respondendo **202 Accepted** com um `id` de rastreio.
+3. O Worker consome o stream com múltiplas goroutines no mesmo *consumer group* (processamento paralelo, sem duplicidade de entrega), aplica **rate limiting por canal** e dispara pelo conector correspondente.
+4. Sucesso → status `success`. Falha → status `retrying` (com backoff exponencial) ou `dlq` (tentativas esgotadas). O estado sempre é persistido no Postgres.
+5. Um `RetryPoller` (goroutine do worker) varre periodicamente o banco por notificações com retry vencido e as reenfileira automaticamente.
+6. Um bot do Telegram (opcional) e um dashboard web permitem consultar status e forçar retry manualmente.
 
 ---
 
@@ -59,8 +70,11 @@ Cliente → POST /api/v1/notifications → API (Go)
 
 - **Go 1.22+** — API e Worker como binários independentes
 - **Redis Streams** — fila de processamento assíncrono com consumer groups
+- **PostgreSQL** — persistência de estado, auditoria e base para retry/DLQ
+- **Prometheus client** — métricas de envio, retry e DLQ
 - **net/http** (stdlib) — API REST, sem framework externo
-- **go-redis/v9**, **google/uuid**, **joho/godotenv** — únicas dependências externas
+- **golang.org/x/time/rate** — rate limiting (token bucket) por canal
+- Bot do Telegram via long polling puro (sem SDK), no mesmo estilo dos conectores de canal
 
 ---
 
@@ -73,19 +87,24 @@ notification-engine/
 │   └── worker/main.go           # Entry point do worker consumidor
 ├── internal/
 │   ├── config/                  # Leitura de variáveis de ambiente
-│   ├── domain/                  # Entidades e interfaces do domínio
+│   ├── domain/                  # Entidades, interfaces (Producer/Consumer/Sender/Repository)
 │   ├── handler/                 # Controladores HTTP
-│   ├── service/                 # Regras de negócio
+│   ├── service/                 # Regras de negócio (criar, listar, retry, bulk)
 │   ├── queue/                   # Producer/Consumer do Redis Streams
-│   └── channel/                 # Conectores: discord, telegram, gmail, webhook
-├── enviar.html                  # Interface web para enviar notificações sem terminal
-├── iniciar.bat                  # Duplo clique: sobe Redis + API + Worker (Windows)
-├── parar.bat                    # Duplo clique: encerra tudo (Windows)
-├── start.ps1 / test.ps1 / stop.ps1  # Equivalentes em PowerShell
-├── docker-compose.yml           # Redis local para desenvolvimento
+│   ├── channel/                 # Conectores: discord, telegram, gmail, webhook
+│   ├── db/                      # Conexão PostgreSQL + repositório + schema.sql
+│   ├── worker/                  # Dispatcher (rate limit + retry/DLQ) + RetryPoller
+│   ├── ratelimit/                # Token bucket por canal
+│   ├── retry/                   # Cálculo de backoff exponencial
+│   ├── metrics/                 # Contadores/histogramas Prometheus
+│   └── bot/                     # Bot do Telegram (/status, /retry)
+├── main.html                    # Interface web para enviar notificações
+├── dashboard.html                # Dashboard: stats, lista, retry manual
+├── prometheus.yml                # Config de scrape do Prometheus
+├── start.bat / stop.bat           # Sobe/derruba tudo (Windows)
+├── compose.yml                   # Redis + PostgreSQL + Prometheus (dev)
 ├── go.mod
-├── .env.example
-└── GUIA-PASSO-A-PASSO.md        # Tutorial completo do zero
+└── .env.example
 ```
 
 ---
@@ -103,14 +122,14 @@ notification-engine/
 
 ### Opção 1 — Windows, com um duplo clique (mais fácil)
 
-1. Extraia o projeto, copie `.env.example` para `.env` e preencha as credenciais dos canais que for usar (veja a seção abaixo).
-2. Dê **dois cliques** em `iniciar.bat`. Ele sobe o Redis, abre a API numa janela e o Worker em outra.
-3. Para encerrar tudo, dê dois cliques em `parar.bat`.
+1. Copie `.env.example` para `.env` e preencha as credenciais dos canais que for usar.
+2. Dê **dois cliques** em `start.bat`. Ele sobe Redis + PostgreSQL + Prometheus, abre a API numa janela e o Worker em outra.
+3. Para encerrar tudo, dê dois cliques em `stop.bat`.
 
 ### Opção 2 — Manual, via terminal
 
 ```bash
-# 1. Subir o Redis local
+# 1. Subir a infraestrutura (Redis + PostgreSQL + Prometheus)
 docker compose up -d
 
 # 2. Configurar variáveis de ambiente
@@ -127,7 +146,7 @@ go run cmd/api/main.go
 go run cmd/worker/main.go
 ```
 
-A API sobe em `http://localhost:8080` por padrão.
+A API sobe em `http://localhost:8080`. O schema do PostgreSQL é criado automaticamente na primeira subida (não precisa rodar migration manual).
 
 ---
 
@@ -138,38 +157,16 @@ Veja todos os detalhes em [`.env.example`](.env.example). Resumo:
 | Variável | Obrigatória para | Descrição |
 |---|---|---|
 | `REDIS_ADDR` | Sempre | Endereço do Redis (default: `localhost:6379`) |
-| `TELEGRAM_BOT_TOKEN` | Canal `telegram` | Token gerado pelo [@BotFather](https://t.me/BotFather) |
+| `DB_HOST` / `DB_PORT` / `DB_USER` / `DB_PASSWORD` / `DB_NAME` | Sempre | Conexão com o PostgreSQL |
+| `TELEGRAM_BOT_TOKEN` | Canal `telegram` e/ou bot | Token gerado pelo [@BotFather](https://t.me/BotFather) |
+| `TELEGRAM_BOT_ENABLED` | Bot do Telegram | `true` para o worker escutar comandos `/status` e `/retry` |
 | `GMAIL_USERNAME` / `GMAIL_APP_PASSWORD` | Canal `email` | Conta Gmail e [senha de app](https://myaccount.google.com/apppasswords) (requer 2FA ativo) |
-| `DEFAULT_DISCORD_TARGET` | Opcional | URL do webhook usada quando `target` não é enviado na requisição |
-| `DEFAULT_TELEGRAM_TARGET` | Opcional | Chat ID usado quando `target` não é enviado |
-| `DEFAULT_EMAIL_TARGET` | Opcional | E-mail usado quando `target` não é enviado |
+| `DEFAULT_DISCORD_TARGET` / `DEFAULT_TELEGRAM_TARGET` / `DEFAULT_EMAIL_TARGET` | Opcional | Usados quando `target` não é enviado na requisição |
 | `WORKER_CONCURRENCY` | Opcional | Nº de goroutines consumidoras (default: `10`) |
-
-Configurar os `DEFAULT_*` evita ter que colar a URL/ID/e-mail em toda requisição de teste.
-
----
-
-## Formas de enviar notificações
-
-### 1. Interface web (`enviar.html`) — recomendado para uso manual
-
-Com a API rodando, dê dois cliques em `enviar.html`. Ele abre no navegador com um formulário: escolha o canal, escreva a mensagem, clique em enviar. Não precisa de terminal nem de montar JSON manualmente.
-
-> A API libera CORS (`Access-Control-Allow-Origin: *`) especificamente para permitir que essa página, aberta direto do disco (`file://`), consiga chamar `localhost:8080`. Isso é adequado para uso local — não é recomendado manter essa configuração em um ambiente de produção exposto publicamente.
-
-### 2. Script de teste automático (`test.ps1`)
-
-Dispara uma notificação de teste para os 4 canais de uma vez, usando os `DEFAULT_*` configurados no `.env`:
-
-```powershell
-.\test.ps1
-```
-
-### 3. Requisição manual
-
-```powershell
-Invoke-RestMethod -Uri "http://localhost:8080/api/v1/notifications" -Method Post -ContentType "application/json" -Body '{"channel":"discord","message":"Olá!"}'
-```
+| `RETRY_MAX_ATTEMPTS` | Opcional | Tentativas antes de mover para a DLQ (default: `5`) |
+| `RETRY_MAX_BACKOFF_SECONDS` | Opcional | Teto do backoff exponencial (default: `3600`) |
+| `RATE_LIMIT_*_RPS` | Opcional | Requisições/segundo por canal (default: 10/20/50/5) |
+| `METRICS_ENABLED` / `METRICS_PORT` | Opcional | Liga `/metrics` na API e no worker (porta separada) |
 
 ---
 
@@ -186,7 +183,6 @@ Invoke-RestMethod -Uri "http://localhost:8080/api/v1/notifications" -Method Post
 ```json
 {"channel":"discord","target":"https://discord.com/api/webhooks/...","message":"Olá!"}
 ```
-(`target` pode ser omitido se `DEFAULT_DISCORD_TARGET` estiver configurado)
 
 **Telegram**
 ```json
@@ -200,12 +196,35 @@ Invoke-RestMethod -Uri "http://localhost:8080/api/v1/notifications" -Method Post
 
 **Resposta (202 Accepted)**
 ```json
-{
-  "id": "441b54a5-3fd7-4657-9b22-b3513d5056a4",
-  "status": "pending",
-  "message": "notificação aceita e enfileirada para processamento"
-}
+{"id": "441b54a5-...", "status": "pending", "message": "notificação aceita e enfileirada para processamento"}
 ```
+
+### `POST /api/v1/notifications/bulk`
+
+Aceita um array de até 500 notificações no mesmo formato acima. Retorna um array com o resultado de cada item (`id`+`status`, ou `error` quando rejeitado na validação):
+
+```json
+[
+  {"channel":"discord","message":"um"},
+  {"channel":"webhook","target":"https://x.com","message":"dois"}
+]
+```
+
+### `GET /api/v1/notifications?status=&channel=&limit=`
+
+Lista as notificações mais recentes, com filtros opcionais por `status` (`pending`/`success`/`retrying`/`dlq`) e `channel`.
+
+### `GET /api/v1/notifications/{id}`
+
+Consulta uma notificação específica (status, tentativas, último erro).
+
+### `POST /api/v1/notifications/{id}/retry`
+
+Reenfileira manualmente uma notificação parada em `retrying` ou `dlq`.
+
+### `GET /api/v1/stats`
+
+Contagem total de notificações por status e por canal — usado pelo dashboard.
 
 ### `GET /health`
 
@@ -213,14 +232,51 @@ Healthcheck simples, retorna `{"status": "ok"}`.
 
 ---
 
-## Roadmap (V2)
+## Retry e Dead Letter Queue (DLQ)
 
-- [ ] Retry com Exponential Backoff + Dead Letter Queue (DLQ)
-- [ ] Persistência histórica de auditoria (PostgreSQL/SQLite)
-- [ ] Rate limiting por canal/destino
-- [ ] Endpoint de envio em lote (`/notifications/bulk`)
-- [ ] Bot com resposta automática (Telegram via webhook)
-- [ ] Dashboard de métricas de envio
+Quando o envio a um canal falha, o worker **não descarta** a notificação:
+
+1. Incrementa `attempts` e grava o erro (`last_error`) no PostgreSQL.
+2. Se `attempts < RETRY_MAX_ATTEMPTS`: status vira `retrying`, com `next_retry_at` calculado por backoff exponencial (2s, 4s, 8s, 16s... até `RETRY_MAX_BACKOFF_SECONDS`).
+3. Se as tentativas se esgotaram (ou o canal nem existe): status vira `dlq`, e a notificação fica parada até uma ação manual.
+
+O `RetryPoller` (goroutine do worker) varre o banco a cada `RETRY_POLL_INTERVAL_SECONDS` procurando notificações com `next_retry_at` vencido e as reenfileira automaticamente no Redis. O PostgreSQL é a única fonte de verdade sobre o que precisa de retry — o Redis Stream é só o transporte.
+
+Notificações em `dlq` podem ser reenviadas manualmente via `POST /notifications/{id}/retry`, pelo bot do Telegram (`/retry <id>`) ou pelo botão "Retry" no dashboard.
+
+---
+
+## Rate limiting
+
+Cada canal tem um limite de requisições por segundo independente (token bucket via `golang.org/x/time/rate`), configurável em `RATE_LIMIT_*_RPS`. Isso evita que um pico de volume sature a API externa do Discord/Telegram e gere bloqueios. Pode ser desligado globalmente com `RATE_LIMIT_ENABLED=false`.
+
+---
+
+## Métricas (Prometheus)
+
+Com `METRICS_ENABLED=true`:
+
+- API expõe `GET /metrics` em `http://localhost:8080/metrics`
+- Worker expõe `GET /metrics` em `http://localhost:9091/metrics` (porta separada, configurável em `METRICS_PORT`)
+
+Métricas expostas: `notifications_enqueued_total`, `notifications_sent_total{channel,result}`, `notifications_retried_total`, `notifications_dlq_total`, `notification_send_duration_seconds`.
+
+O `compose.yml` já sobe um Prometheus (`http://localhost:9090`) configurado para fazer scrape dos dois endpoints via `prometheus.yml`.
+
+---
+
+## Bot do Telegram
+
+Com `TELEGRAM_BOT_TOKEN` e `TELEGRAM_BOT_ENABLED=true`, o worker sobe um bot que escuta comandos via long polling:
+
+- `/status <id>` — retorna canal, status, tentativas e último erro de uma notificação
+- `/retry <id>` — reenfileira uma notificação em `retrying` ou `dlq`
+
+---
+
+## Dashboard
+
+Abra `dashboard.html` (com a API rodando) para ver, em tempo real: total de notificações por status, lista filtrável por status/canal, último erro de cada uma, e um botão de retry manual para itens em `retrying`/`dlq`. Assim como `main.html`, é uma página estática que fala direto com a API via `fetch` (CORS liberado para uso local).
 
 ---
 

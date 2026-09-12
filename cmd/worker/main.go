@@ -4,17 +4,24 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"os/signal"
 	"sync"
 	"syscall"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
 
+	"notification-engine/internal/bot"
 	"notification-engine/internal/channel"
 	"notification-engine/internal/config"
+	"notification-engine/internal/db"
 	"notification-engine/internal/domain"
 	"notification-engine/internal/queue"
+	"notification-engine/internal/ratelimit"
+	"notification-engine/internal/service"
+	"notification-engine/internal/worker"
 )
 
 func main() {
@@ -34,6 +41,20 @@ func main() {
 	cancelPing()
 	log.Printf("[worker] conectado ao Redis em %s", cfg.RedisAddr)
 
+	dsn := db.BuildDSN(cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBPassword, cfg.DBName, cfg.DBSSLMode)
+	conn, err := db.Connect(dsn)
+	if err != nil {
+		log.Fatalf("[worker] falha ao conectar no PostgreSQL (%s:%s): %v", cfg.DBHost, cfg.DBPort, err)
+	}
+	defer conn.Close()
+	if err := db.EnsureSchema(conn); err != nil {
+		log.Fatalf("[worker] falha ao aplicar schema do banco: %v", err)
+	}
+	log.Printf("[worker] conectado ao PostgreSQL em %s:%s", cfg.DBHost, cfg.DBPort)
+
+	repo := db.NewNotificationRepository(conn)
+	producer := queue.NewRedisProducer(redisClient, cfg.RedisStreamName)
+
 	registry := channel.NewRegistry(
 		time.Duration(cfg.HTTPClientTimeoutSeconds)*time.Second,
 		cfg.TelegramBotToken,
@@ -46,27 +67,48 @@ func main() {
 		},
 	)
 
-	// dispatch é o handler de negócio chamado pelo consumer para cada
-	// mensagem lida do stream: identifica o conector do canal e dispara.
-	dispatch := func(ctx context.Context, n *domain.Notification) error {
-		sender, err := registry.Get(n.Channel)
-		if err != nil {
-			return fmt.Errorf("canal não suportado: %w", err)
+	rps := map[domain.ChannelType]float64{
+		domain.ChannelDiscord:  cfg.RateLimitDiscordRPS,
+		domain.ChannelTelegram: cfg.RateLimitTelegramRPS,
+		domain.ChannelWebhook:  cfg.RateLimitWebhookRPS,
+		domain.ChannelEmail:    cfg.RateLimitEmailRPS,
+	}
+	if !cfg.RateLimitEnabled {
+		// RPS "infinito" na prática: token bucket com burst altíssimo.
+		for ch := range rps {
+			rps[ch] = 1e6
 		}
+	}
+	limiters := ratelimit.New(rps)
 
-		if err := sender.Send(ctx, n); err != nil {
-			log.Printf("[worker] FALHA id=%s channel=%s target=%s erro=%v",
-				n.ID, n.Channel, n.Target, err)
-			return err
-		}
-
-		log.Printf("[worker] SUCESSO id=%s channel=%s target=%s",
-			n.ID, n.Channel, n.Target)
-		return nil
+	dispatcher := &worker.Dispatcher{
+		Registry:          registry,
+		Repo:              repo,
+		Limiters:          limiters,
+		MaxBackoffSeconds: cfg.RetryMaxBackoffSeconds,
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+
+	retryPoller := &worker.RetryPoller{
+		Repo:      repo,
+		Producer:  producer,
+		Interval:  time.Duration(cfg.RetryPollIntervalSeconds) * time.Second,
+		BatchSize: cfg.RetryBatchSize,
+	}
+	go retryPoller.Run(ctx)
+
+	if cfg.MetricsEnabled {
+		go startMetricsServer(cfg.MetricsPort)
+	}
+
+	if cfg.TelegramBotEnabled && cfg.TelegramBotToken != "" {
+		defaultTargets := map[domain.ChannelType]string{} // bot só consulta/reenfileira, não precisa de defaults
+		svc := service.NewNotificationService(producer, repo, defaultTargets, cfg.RetryMaxAttempts)
+		telegramBot := bot.New(cfg.TelegramBotToken, svc)
+		go telegramBot.Run(ctx)
+	}
 
 	// Concorrência nativa: sobe N consumidores independentes (goroutines),
 	// cada um com um consumer-name único dentro do MESMO consumer group.
@@ -86,7 +128,7 @@ func main() {
 		wg.Add(1)
 		go func(c *queue.RedisConsumer, name string) {
 			defer wg.Done()
-			if err := c.Consume(ctx, dispatch); err != nil && ctx.Err() == nil {
+			if err := c.Consume(ctx, dispatcher.Handle); err != nil && ctx.Err() == nil {
 				log.Printf("[worker] consumidor %s encerrado com erro: %v", name, err)
 			}
 		}(consumer, consumerName)
@@ -105,4 +147,17 @@ func main() {
 	}
 
 	log.Println("[worker] encerrado com sucesso")
+}
+
+// startMetricsServer sobe um servidor HTTP dedicado só para /metrics.
+// Fica em processo/porta separados da API porque o worker não tem
+// (e não precisa ter) um servidor HTTP de negócio.
+func startMetricsServer(port string) {
+	mux := http.NewServeMux()
+	mux.Handle("GET /metrics", promhttp.Handler())
+
+	log.Printf("[worker] métricas expostas em :%s/metrics", port)
+	if err := http.ListenAndServe(":"+port, mux); err != nil {
+		log.Printf("[worker] servidor de métricas encerrado: %v", err)
+	}
 }

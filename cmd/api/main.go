@@ -9,9 +9,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
 
 	"notification-engine/internal/config"
+	"notification-engine/internal/db"
 	"notification-engine/internal/domain"
 	"notification-engine/internal/handler"
 	"notification-engine/internal/queue"
@@ -28,12 +30,25 @@ func main() {
 	})
 
 	ctxPing, cancelPing := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancelPing()
 	if err := redisClient.Ping(ctxPing).Err(); err != nil {
+		cancelPing()
 		log.Fatalf("[api] falha ao conectar no Redis (%s): %v", cfg.RedisAddr, err)
 	}
+	cancelPing()
 	log.Printf("[api] conectado ao Redis em %s", cfg.RedisAddr)
 
+	dsn := db.BuildDSN(cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBPassword, cfg.DBName, cfg.DBSSLMode)
+	conn, err := db.Connect(dsn)
+	if err != nil {
+		log.Fatalf("[api] falha ao conectar no PostgreSQL (%s:%s): %v", cfg.DBHost, cfg.DBPort, err)
+	}
+	defer conn.Close()
+	if err := db.EnsureSchema(conn); err != nil {
+		log.Fatalf("[api] falha ao aplicar schema do banco: %v", err)
+	}
+	log.Printf("[api] conectado ao PostgreSQL em %s:%s", cfg.DBHost, cfg.DBPort)
+
+	repo := db.NewNotificationRepository(conn)
 	producer := queue.NewRedisProducer(redisClient, cfg.RedisStreamName)
 
 	defaultTargets := map[domain.ChannelType]string{}
@@ -47,12 +62,21 @@ func main() {
 		defaultTargets[domain.ChannelEmail] = cfg.DefaultEmailTarget
 	}
 
-	notificationService := service.NewNotificationService(producer, defaultTargets)
+	notificationService := service.NewNotificationService(producer, repo, defaultTargets, cfg.RetryMaxAttempts)
 	notificationHandler := handler.NewNotificationHandler(notificationService)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", notificationHandler.HealthCheck)
 	mux.HandleFunc("POST /api/v1/notifications", notificationHandler.Create)
+	mux.HandleFunc("POST /api/v1/notifications/bulk", notificationHandler.Bulk)
+	mux.HandleFunc("GET /api/v1/notifications", notificationHandler.List)
+	mux.HandleFunc("GET /api/v1/notifications/{id}", notificationHandler.Get)
+	mux.HandleFunc("POST /api/v1/notifications/{id}/retry", notificationHandler.Retry)
+	mux.HandleFunc("GET /api/v1/stats", notificationHandler.Stats)
+
+	if cfg.MetricsEnabled {
+		mux.Handle("GET /metrics", promhttp.Handler())
+	}
 
 	server := &http.Server{
 		Addr:         ":" + cfg.APIPort,
@@ -89,8 +113,8 @@ func main() {
 }
 
 // corsMiddleware libera chamadas vindas de qualquer origem (ex: a página
-// enviar.html aberta direto do disco, file://) para poder chamar a API.
-// Adequado para uso local/desenvolvimento.
+// main.html/dashboard.html aberta direto do disco, file://) para poder
+// chamar a API. Adequado para uso local/desenvolvimento.
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")

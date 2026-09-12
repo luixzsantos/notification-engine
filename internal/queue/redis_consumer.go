@@ -12,10 +12,16 @@ import (
 	"notification-engine/internal/domain"
 )
 
+// claimMinIdle é o tempo mínimo que uma mensagem precisa estar parada na
+// Pending Entries List (PEL) antes de ser reivindicada por reclaimStale.
+// Evita reivindicar uma mensagem que outro consumidor ainda está processando.
+const claimMinIdle = 30 * time.Second
+
 // RedisConsumer implementa domain.Consumer utilizando Redis Streams com
 // Consumer Groups (XREADGROUP), permitindo múltiplos workers escalarem
-// horizontalmente sem processar a mesma mensagem duas vezes, além de
-// suportar ACK (XACK) — base necessária para a DLQ/retry da V2.
+// horizontalmente sem processar a mesma mensagem duas vezes. Mensagens que
+// ficam presas na PEL (worker derrubado, reiniciado, ou interrompido durante
+// o graceful shutdown) são reivindicadas de volta via XAUTOCLAIM.
 type RedisConsumer struct {
 	client       *redis.Client
 	streamName   string
@@ -36,7 +42,7 @@ func NewRedisConsumer(client *redis.Client, streamName, consumerGroup, consumerN
 // "$" indica que o grupo só receberá mensagens adicionadas a partir de agora;
 // "0" faria o grupo reprocessar todo o histórico do stream.
 func (c *RedisConsumer) ensureGroup(ctx context.Context) error {
-	err := c.client.XGroupCreateMkStream(ctx, c.streamName, c.consumerGrp, "0").Err()
+	err := c.client.XGroupCreateMkStream(ctx, c.streamName, c.consumerGrp, "$").Err()
 	if err != nil && !errors.Is(err, redis.Nil) {
 		// BUSYGROUP significa que o grupo já existe — não é um erro real.
 		if err.Error() != "BUSYGROUP Consumer Group name already exists" {
@@ -47,9 +53,10 @@ func (c *RedisConsumer) ensureGroup(ctx context.Context) error {
 }
 
 // Consume entra em loop bloqueante lendo novas mensagens do stream e
-// delegando o processamento ao handler informado. Em caso de sucesso, a
-// mensagem é confirmada (XACK). Em caso de erro, a mensagem permanece
-// pendente no stream (PEL) para reprocessamento futuro (base da V2).
+// delegando o processamento ao handler informado. A cada iteração também
+// reivindica mensagens presas na PEL de outros consumidores (reclaimStale).
+// Em caso de sucesso a mensagem é confirmada (XACK); em caso de erro do
+// handler ela permanece pendente para uma futura reivindicação.
 func (c *RedisConsumer) Consume(ctx context.Context, handler func(context.Context, *domain.Notification) error) error {
 	if err := c.ensureGroup(ctx); err != nil {
 		return err
@@ -63,6 +70,8 @@ func (c *RedisConsumer) Consume(ctx context.Context, handler func(context.Contex
 			return ctx.Err()
 		default:
 		}
+
+		c.reclaimStale(ctx, handler)
 
 		streams, err := c.client.XReadGroup(ctx, &redis.XReadGroupArgs{
 			Group:    c.consumerGrp,
@@ -89,6 +98,31 @@ func (c *RedisConsumer) Consume(ctx context.Context, handler func(context.Contex
 	}
 }
 
+// reclaimStale reivindica mensagens paradas há mais de claimMinIdle na PEL
+// de qualquer consumidor do grupo (inclui as deste próprio, caso ele tenha
+// sido reiniciado) e as processa como se tivessem acabado de chegar.
+func (c *RedisConsumer) reclaimStale(ctx context.Context, handler func(context.Context, *domain.Notification) error) {
+	messages, _, err := c.client.XAutoClaim(ctx, &redis.XAutoClaimArgs{
+		Stream:   c.streamName,
+		Group:    c.consumerGrp,
+		Consumer: c.consumerName,
+		MinIdle:  claimMinIdle,
+		Start:    "0-0",
+		Count:    10,
+	}).Result()
+	if err != nil {
+		if !errors.Is(err, redis.Nil) {
+			log.Printf("[consumer] erro ao reivindicar mensagens presas na PEL: %v", err)
+		}
+		return
+	}
+
+	for _, message := range messages {
+		log.Printf("[consumer] mensagem %s reivindicada da PEL (idle > %s)", message.ID, claimMinIdle)
+		c.processMessage(ctx, message, handler)
+	}
+}
+
 func (c *RedisConsumer) processMessage(ctx context.Context, message redis.XMessage, handler func(context.Context, *domain.Notification) error) {
 	rawData, ok := message.Values["data"].(string)
 	if !ok {
@@ -105,9 +139,9 @@ func (c *RedisConsumer) processMessage(ctx context.Context, message redis.XMessa
 	}
 
 	if err := handler(ctx, &notification); err != nil {
-		// V1: apenas loga a falha. A mensagem NÃO é confirmada (ACK),
-		// permanecendo na Pending Entries List do Redis para a futura
-		// estratégia de retry/DLQ da V2.
+		// O handler (worker.Dispatcher) só devolve erro em shutdown — a
+		// mensagem permanece na PEL e será reivindicada por reclaimStale
+		// assim que o tempo mínimo de idle passar.
 		log.Printf("[consumer] falha ao processar notificação id=%s channel=%s: %v",
 			notification.ID, notification.Channel, err)
 		return

@@ -26,7 +26,7 @@ type GmailConfig struct {
 	FromName    string
 }
 
-// NewRegistry monta o registry com todos os conectores disponíveis na V1.
+// NewRegistry monta o registry com todos os conectores de canal disponíveis.
 func NewRegistry(httpTimeout time.Duration, telegramBotToken string, gmailCfg GmailConfig) *Registry {
 	client := &http.Client{Timeout: httpTimeout}
 
@@ -36,6 +36,7 @@ func NewRegistry(httpTimeout time.Duration, telegramBotToken string, gmailCfg Gm
 
 	registry.register(NewWebhookSender(client))
 	registry.register(NewDiscordSender(client))
+	registry.register(NewTelegramSender(client, telegramBotToken))
 	registry.register(NewGmailSender(
 		gmailCfg.Host,
 		gmailCfg.Port,

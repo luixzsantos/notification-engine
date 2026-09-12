@@ -1,0 +1,29 @@
+-- Schema da engine. Aplicado automaticamente na subida da API e do worker
+-- (CREATE TABLE/INDEX IF NOT EXISTS), sem necessidade de uma ferramenta de
+-- migration separada.
+
+CREATE TABLE IF NOT EXISTS notifications (
+    id            TEXT PRIMARY KEY,
+    channel       TEXT NOT NULL,
+    target        TEXT NOT NULL,
+    subject       TEXT NOT NULL DEFAULT '',
+    message       TEXT NOT NULL DEFAULT '',
+    payload       JSONB NOT NULL DEFAULT '{}',
+    headers       JSONB NOT NULL DEFAULT '{}',
+    status        TEXT NOT NULL,
+    attempts      INTEGER NOT NULL DEFAULT 0,
+    max_attempts  INTEGER NOT NULL DEFAULT 5,
+    last_error    TEXT NOT NULL DEFAULT '',
+    next_retry_at TIMESTAMPTZ,
+    created_at    TIMESTAMPTZ NOT NULL,
+    updated_at    TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_status ON notifications (status);
+CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications (created_at DESC);
+
+-- Índice parcial: acelera a varredura periódica de retries vencidos
+-- (RetryPoller) sem pesar em linhas que já estão em success/dlq/pending.
+CREATE INDEX IF NOT EXISTS idx_notifications_retry_due
+    ON notifications (next_retry_at)
+    WHERE status = 'retrying';
