@@ -113,7 +113,7 @@ func main() {
 }
 
 // corsMiddleware libera chamadas vindas de qualquer origem (ex: a página
-// main.html/dashboard.html aberta direto do disco, file://) para poder
+// main.html aberta direto do disco, file://) para poder
 // chamar a API. Adequado para uso local/desenvolvimento.
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

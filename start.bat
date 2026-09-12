@@ -45,7 +45,7 @@ echo   Tudo no ar!
 echo   API:        http://localhost:8080
 echo   Metricas:   http://localhost:8080/metrics (API) e :9091/metrics (worker)
 echo   Prometheus: http://localhost:9090
-echo   Dashboard:  dashboard.html
+echo   Interface:  main.html (enviar + dashboard + links)
 echo ==============================================
 echo.
 echo Duas janelas novas foram abertas:

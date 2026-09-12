@@ -164,7 +164,7 @@ go run ./cmd/worker/main.go
 
 # 6. Acessar:
 # - Formulário: main.html (abrir no navegador)
-# - Dashboard: dashboard.html
+# - Interface (enviar + dashboard): main.html
 # - API: http://localhost:8080/api/v1/notifications
 # - Métricas (API): http://localhost:8080/metrics
 # - Métricas (Worker): http://localhost:9091/metrics
@@ -299,14 +299,16 @@ curl -X POST http://localhost:8080/api/v1/notifications/23ec8679-0165-4877-92b6-
 
 ## 🎛️ Dashboard (NOVO)
 
-Abra `dashboard.html` no navegador (ou `http://localhost:8081/dashboard.html` se subindo via HTTP).
+O `main.html` agora é uma interface única: a barra lateral tem um item **dashboard** que troca a view sem recarregar a página.
 
 **Funcionalidades:**
 - **Stats em tempo real** — total, pending, success, retrying, dlq
 - **Filtros** — por status ou canal
 - **Lista** — ID, canal, status, tentativas, último erro, data de criação
 - **Retry manual** — botão para itens em retry/dlq
-- **Auto-refresh** — a cada 15 segundos
+- **Auto-refresh** — a cada 15 segundos (enquanto a view dashboard está aberta)
+- **Links diretos** — Prometheus, métricas da API e do worker, na barra lateral e no rodapé
+- **Status da API** — indicador online/offline no rodapé
 
 ---
 
@@ -472,7 +474,7 @@ Para migrar histórico, implemente um script customizado.
 - [ ] Rodar API: `go run ./cmd/api/main.go`
 - [ ] Rodar Worker: `go run ./cmd/worker/main.go`
 - [ ] Testar via formulário: `main.html`
-- [ ] Monitorar via Dashboard: `dashboard.html`
+- [ ] Monitorar via Dashboard: `main.html` (aba "dashboard")
 
 ---
 

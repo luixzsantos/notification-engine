@@ -109,13 +109,15 @@ Opcional via `TELEGRAM_BOT_ENABLED=true`:
 - `/status <id>` — mostra canal, status, tentativas, último erro
 - `/retry <id>` — reenfileira manual, zera tentativas
 
-### 8. **Dashboard** (`dashboard.html`)
+### 8. **Dashboard** (unificado em `main.html`)
 
-Interface minimalista (mesmo estilo do `main.html`):
+Interface única — sem página separada. A barra lateral do `main.html` alterna entre "enviar" e "dashboard" via JS, sem recarregar:
 - **Stats**: Total, Pending, Success, Retrying, DLQ (em tempo real)
 - **Lista**: filtrável por status/canal
 - **Retry manual**: botão para itens em retry/dlq
 - Auto-refresh a cada 15s
+- Links diretos para Prometheus e para os endpoints `/metrics`
+- Indicador de status da API (online/offline) no rodapé
 
 ### 9. **Recuperação de Mensagens**
 
@@ -168,7 +170,7 @@ go run ./cmd/worker/main.go    # terminal 2
 ### 4. Acessar
 - API: `http://localhost:8080/api/v1/notifications`
 - Form: `main.html`
-- Dashboard: `dashboard.html`
+- Interface (enviar + dashboard): `main.html`
 - Métricas (API): `http://localhost:8080/metrics`
 - Métricas (Worker): `http://localhost:9091/metrics`
 - Prometheus: `http://localhost:9090`

@@ -99,8 +99,7 @@ notification-engine/
 │   ├── retry/                   # Cálculo de backoff exponencial
 │   ├── metrics/                 # Contadores/histogramas Prometheus
 │   └── bot/                     # Bot do Telegram (/status, /retry)
-├── main.html                    # Interface web para enviar notificações
-├── dashboard.html                # Dashboard: stats, lista, retry manual
+├── main.html                    # Interface única: enviar + dashboard + links de monitoramento
 ├── prometheus.yml                # Config de scrape do Prometheus
 ├── start.bat / stop.bat           # Sobe/derruba tudo (Windows)
 ├── compose.yml                   # Redis + PostgreSQL + Prometheus (dev)
@@ -277,7 +276,7 @@ Com `TELEGRAM_BOT_TOKEN` e `TELEGRAM_BOT_ENABLED=true`, o worker sobe um bot que
 
 ## Dashboard
 
-Abra `dashboard.html` (com a API rodando) para ver, em tempo real: total de notificações por status, lista filtrável por status/canal, último erro de cada uma, e um botão de retry manual para itens em `retrying`/`dlq`. Assim como `main.html`, é uma página estática que fala direto com a API via `fetch` (CORS liberado para uso local).
+Abra `main.html` (com a API rodando) e clique em **dashboard** na barra lateral para ver, em tempo real: total de notificações por status, lista filtrável por status/canal, último erro de cada uma, e um botão de retry manual para itens em `retrying`/`dlq`. A mesma página também traz links diretos para Prometheus e para os endpoints de métricas. É uma página estática que fala direto com a API via `fetch` (CORS liberado para uso local).
 
 ---
 

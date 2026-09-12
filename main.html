@@ -27,6 +27,11 @@
       --success-border: #666b73;
       --error-bg: #2f3033;
       --error-border: #73767d;
+
+      --pending: #6d7178;
+      --success: #4caf7d;
+      --retrying: #d9a441;
+      --dlq: #d9534f;
     }
 
     * {
@@ -147,6 +152,11 @@
       transition:
         background .12s ease,
         color .12s ease;
+
+      background: none;
+      border: none;
+      text-align: left;
+      font-family: inherit;
     }
 
     .channel:hover {
@@ -167,6 +177,23 @@
 
     .channel.active .channel-icon {
       color: var(--text);
+    }
+
+    .channel-status-dot {
+      width: 7px;
+      height: 7px;
+      margin-left: auto;
+      border-radius: 50%;
+      background: var(--muted-dark);
+      flex-shrink: 0;
+    }
+
+    .channel-status-dot.online {
+      background: var(--success);
+    }
+
+    .channel-status-dot.offline {
+      background: var(--dlq);
     }
 
     /* =========================
@@ -228,6 +255,31 @@
       font-size: 13px;
     }
 
+    .header-spacer {
+      flex: 1;
+    }
+
+    .header-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+
+      color: var(--muted);
+      font-size: 12px;
+      text-decoration: none;
+
+      padding: 6px 10px;
+      border-radius: 5px;
+      border: 1px solid var(--border);
+
+      transition: color .12s ease, border-color .12s ease;
+    }
+
+    .header-link:hover {
+      color: var(--text-bright);
+      border-color: #46484e;
+    }
+
     /* =========================
        CONTENT
     ========================= */
@@ -243,11 +295,25 @@
       padding: 32px 28px;
     }
 
+    .view {
+      display: none;
+      width: 100%;
+    }
+
+    .view.active {
+      display: flex;
+      justify-content: center;
+    }
+
     .content-inner {
       width: 100%;
       max-width: 760px;
 
       padding-bottom: 30px;
+    }
+
+    .content-inner.wide {
+      max-width: 1080px;
     }
 
     .welcome {
@@ -442,7 +508,7 @@
        BUTTON
     ========================= */
 
-    button {
+    button.primary {
       width: 100%;
 
       margin-top: 20px;
@@ -466,16 +532,16 @@
         border-color .12s ease;
     }
 
-    button:hover:not(:disabled) {
+    button.primary:hover:not(:disabled) {
       background: #3a3c41;
       border-color: #5a5d64;
     }
 
-    button:active:not(:disabled) {
+    button.primary:active:not(:disabled) {
       background: #25262a;
     }
 
-    button:disabled {
+    button.primary:disabled {
       opacity: .5;
       cursor: not-allowed;
     }
@@ -518,6 +584,136 @@
     }
 
     /* =========================
+       DASHBOARD VIEW
+    ========================= */
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .stat-card {
+      background: #2b2d31;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+    }
+
+    .stat-card .value {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text-bright);
+    }
+
+    .stat-card .label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .03em;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .toolbar select,
+    .toolbar button {
+      background: var(--input);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 7px 10px;
+      font-size: 13px;
+      font-family: inherit;
+      cursor: pointer;
+      width: auto;
+      margin-top: 0;
+    }
+
+    .toolbar select:hover,
+    .toolbar button:hover {
+      background: var(--hover);
+    }
+
+    .toolbar .spacer {
+      flex: 1;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #2b2d31;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+
+    th {
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .03em;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    td.mono {
+      font-family: ui-monospace, monospace;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .status-badge.pending { background: rgba(109,113,120,.2); color: var(--pending); }
+    .status-badge.success { background: rgba(76,175,125,.15); color: var(--success); }
+    .status-badge.retrying { background: rgba(217,164,65,.15); color: var(--retrying); }
+    .status-badge.dlq { background: rgba(217,83,79,.15); color: var(--dlq); }
+
+    .error-cell {
+      max-width: 240px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--dlq);
+      font-size: 12px;
+    }
+
+    .retry-btn {
+      padding: 4px 10px !important;
+      font-size: 12px !important;
+    }
+
+    .empty-row {
+      text-align: center;
+      color: var(--muted);
+      padding: 30px;
+    }
+
+    /* =========================
        BOTTOM BAR
     ========================= */
 
@@ -554,6 +750,14 @@
       background: #777b82;
     }
 
+    .status-dot.online {
+      background: var(--success);
+    }
+
+    .status-dot.offline {
+      background: var(--dlq);
+    }
+
     .api-info {
       margin-left: auto;
 
@@ -561,6 +765,19 @@
 
       font-family: monospace;
       font-size: 11px;
+
+      display: flex;
+      gap: 14px;
+    }
+
+    .api-info a {
+      color: var(--muted-dark);
+      text-decoration: none;
+    }
+
+    .api-info a:hover {
+      color: var(--muted);
+      text-decoration: underline;
     }
 
     /* =========================
@@ -587,6 +804,12 @@
     /* =========================
        RESPONSIVE
     ========================= */
+
+    @media (max-width: 900px) {
+      .stats {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
 
     @media (max-width: 700px) {
       .sidebar {
@@ -639,16 +862,37 @@
           Notificações
         </div>
 
-        <div class="channel active">
+        <button class="channel active" data-view="send">
           <span class="channel-icon">#</span>
           <span>enviar</span>
+        </button>
+
+        <button class="channel" data-view="dashboard">
+          <span class="channel-icon">▤</span>
+          <span>dashboard</span>
+        </button>
+
+      </div>
+
+      <div class="sidebar-section">
+
+        <div class="section-title">
+          Monitoramento
         </div>
 
-        <a href="dashboard.html" style="text-decoration:none">
-          <div class="channel">
-            <span class="channel-icon">▤</span>
-            <span>dashboard</span>
-          </div>
+        <a class="channel" href="http://localhost:9090" target="_blank" rel="noopener">
+          <span class="channel-icon">◎</span>
+          <span>Prometheus</span>
+        </a>
+
+        <a class="channel" href="http://localhost:8080/metrics" target="_blank" rel="noopener">
+          <span class="channel-icon">≡</span>
+          <span>Métricas API</span>
+        </a>
+
+        <a class="channel" href="http://localhost:9091/metrics" target="_blank" rel="noopener">
+          <span class="channel-icon">≡</span>
+          <span>Métricas Worker</span>
         </a>
 
       </div>
@@ -659,22 +903,22 @@
           Canais disponíveis
         </div>
 
-        <div class="channel">
+        <div class="channel" style="cursor:default">
           <span class="channel-icon">◈</span>
           <span>Discord</span>
         </div>
 
-        <div class="channel">
+        <div class="channel" style="cursor:default">
           <span class="channel-icon">◇</span>
           <span>Telegram</span>
         </div>
 
-        <div class="channel">
+        <div class="channel" style="cursor:default">
           <span class="channel-icon">□</span>
           <span>Email</span>
         </div>
 
-        <div class="channel">
+        <div class="channel" style="cursor:default">
           <span class="channel-icon">↗</span>
           <span>Webhook</span>
         </div>
@@ -694,17 +938,23 @@
 
       <header class="chat-header">
 
-        <span class="header-icon">#</span>
+        <span class="header-icon" id="header-icon">#</span>
 
-        <span class="header-title">
+        <span class="header-title" id="header-title">
           enviar
         </span>
 
         <span class="header-divider"></span>
 
-        <span class="header-description">
+        <span class="header-description" id="header-description">
           Enviar uma nova notificação
         </span>
+
+        <span class="header-spacer"></span>
+
+        <a class="header-link" href="http://localhost:9090" target="_blank" rel="noopener">
+          ◎ Prometheus
+        </a>
 
       </header>
 
@@ -713,97 +963,148 @@
 
       <section class="content">
 
-        <div class="content-inner">
+        <!-- ===== VIEW: ENVIAR ===== -->
 
-          <div class="welcome">
+        <div class="view active" id="view-send">
+          <div class="content-inner">
 
-            <h1>
-              Enviar notificação
-            </h1>
+            <div class="welcome">
 
-            <p>
-              Configure o canal e envie uma mensagem através do Notification Engine.
-            </p>
+              <h1>
+                Enviar notificação
+              </h1>
 
-          </div>
-
-
-          <!-- FORM -->
-
-          <div class="form-card">
-
-            <div class="form-header">
-
-              <div class="form-header-title">
-                Nova notificação
-              </div>
-
-              <div class="form-header-description">
-                Os campos disponíveis mudam de acordo com o canal selecionado.
-              </div>
+              <p>
+                Configure o canal e envie uma mensagem através do Notification Engine.
+              </p>
 
             </div>
 
 
-            <form id="form">
+            <!-- FORM -->
 
-              <label for="channel">
-                Canal
-              </label>
+            <div class="form-card">
 
-              <select id="channel">
-                <option value="discord">Discord</option>
-                <option value="telegram">Telegram</option>
-                <option value="email">Gmail (Email)</option>
-                <option value="webhook">Webhook genérico</option>
-              </select>
+              <div class="form-header">
 
+                <div class="form-header-title">
+                  Nova notificação
+                </div>
 
-              <div id="group-target" class="field-group">
-
-                <label for="target">
-                  Destino
-                  <span class="badge" id="target-badge">
-                    opcional
-                  </span>
-                </label>
-
-                <input type="text" id="target" placeholder="Deixe em branco para usar o padrão do .env">
-
-                <p class="hint" id="target-hint"></p>
+                <div class="form-header-description">
+                  Os campos disponíveis mudam de acordo com o canal selecionado.
+                </div>
 
               </div>
 
 
-              <div id="group-subject" class="field-group">
+              <form id="form">
 
-                <label for="subject">
-                  Assunto
+                <label for="channel">
+                  Canal
                 </label>
 
-                <input type="text" id="subject" placeholder="Assunto do e-mail">
-
-              </div>
-
-
-              <label for="message">
-                Mensagem
-              </label>
-
-              <textarea id="message" placeholder="Escreva a mensagem aqui..."></textarea>
+                <select id="channel">
+                  <option value="discord">Discord</option>
+                  <option value="telegram">Telegram</option>
+                  <option value="email">Gmail (Email)</option>
+                  <option value="webhook">Webhook genérico</option>
+                </select>
 
 
-              <button type="submit" id="submit-btn">
-                Enviar notificação
-              </button>
+                <div id="group-target" class="field-group">
 
-            </form>
+                  <label for="target">
+                    Destino
+                    <span class="badge" id="target-badge">
+                      opcional
+                    </span>
+                  </label>
+
+                  <input type="text" id="target" placeholder="Deixe em branco para usar o padrão do .env">
+
+                  <p class="hint" id="target-hint"></p>
+
+                </div>
+
+
+                <div id="group-subject" class="field-group">
+
+                  <label for="subject">
+                    Assunto
+                  </label>
+
+                  <input type="text" id="subject" placeholder="Assunto do e-mail">
+
+                </div>
+
+
+                <label for="message">
+                  Mensagem
+                </label>
+
+                <textarea id="message" placeholder="Escreva a mensagem aqui..."></textarea>
+
+
+                <button type="submit" class="primary" id="submit-btn">
+                  Enviar notificação
+                </button>
+
+              </form>
+
+            </div>
+
+
+            <div id="result"></div>
 
           </div>
+        </div>
 
+        <!-- ===== VIEW: DASHBOARD ===== -->
 
-          <div id="result"></div>
+        <div class="view" id="view-dashboard">
+          <div class="content-inner wide">
 
+            <div class="stats" id="stats"></div>
+
+            <div class="toolbar">
+              <select id="filter-status">
+                <option value="">Todos os status</option>
+                <option value="pending">Pending</option>
+                <option value="success">Success</option>
+                <option value="retrying">Retrying</option>
+                <option value="dlq">DLQ</option>
+              </select>
+
+              <select id="filter-channel">
+                <option value="">Todos os canais</option>
+                <option value="discord">Discord</option>
+                <option value="telegram">Telegram</option>
+                <option value="email">Email</option>
+                <option value="webhook">Webhook</option>
+              </select>
+
+              <div class="spacer"></div>
+
+              <button id="refresh-btn">Atualizar</button>
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Canal</th>
+                  <th>Status</th>
+                  <th>Tentativas</th>
+                  <th>Último erro</th>
+                  <th>Criado em</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="rows"></tbody>
+            </table>
+
+          </div>
         </div>
 
       </section>
@@ -814,12 +1115,13 @@
       <footer class="bottom-bar">
 
         <div class="status">
-          <span class="status-dot"></span>
-          <span>Notification Engine</span>
+          <span class="status-dot" id="api-status-dot"></span>
+          <span id="api-status-text">Verificando API...</span>
         </div>
 
         <div class="api-info">
-          API · localhost:8080
+          <span>API · localhost:8080</span>
+          <a href="http://localhost:9090" target="_blank" rel="noopener">Prometheus · :9090</a>
         </div>
 
       </footer>
@@ -830,11 +1132,41 @@
 
   <!-- =========================
        JAVASCRIPT
-       LÓGICA ORIGINAL
   ========================== -->
 
   <script>
-    const API_URL = "http://localhost:8080/api/v1/notifications";
+    const API_BASE = "http://localhost:8080";
+    const API_URL = `${API_BASE}/api/v1/notifications`;
+
+    /* ===== NAVEGAÇÃO ENTRE VIEWS ===== */
+
+    const navButtons = document.querySelectorAll(".channel[data-view]");
+    const views = {
+      send: document.getElementById("view-send"),
+      dashboard: document.getElementById("view-dashboard")
+    };
+
+    const headerConfig = {
+      send: { icon: "#", title: "enviar", description: "Enviar uma nova notificação" },
+      dashboard: { icon: "▤", title: "dashboard", description: "Monitorar notificações em tempo real" }
+    };
+
+    function switchView(name) {
+      navButtons.forEach(btn => btn.classList.toggle("active", btn.dataset.view === name));
+      Object.entries(views).forEach(([key, el]) => el.classList.toggle("active", key === name));
+
+      document.getElementById("header-icon").textContent = headerConfig[name].icon;
+      document.getElementById("header-title").textContent = headerConfig[name].title;
+      document.getElementById("header-description").textContent = headerConfig[name].description;
+
+      if (name === "dashboard") refreshDashboard();
+    }
+
+    navButtons.forEach(btn => {
+      btn.addEventListener("click", () => switchView(btn.dataset.view));
+    });
+
+    /* ===== FORMULÁRIO DE ENVIO ===== */
 
     const channelSelect = document.getElementById("channel");
     const targetGroup = document.getElementById("group-target");
@@ -894,7 +1226,7 @@
         if (!response.ok) {
           showResult("error", "Erro: " + (data.error || "falha desconhecida"));
         } else {
-          showResult("success", `Enfileirado! id: ${data.id} — status: ${data.status}. Confira o terminal do Worker para ver se deu SUCESSO ou FALHA na entrega.`);
+          showResult("success", `Enfileirado! id: ${data.id} — status: ${data.status}. Veja o Dashboard para acompanhar a entrega.`);
           document.getElementById("message").value = "";
         }
       } catch (err) {
@@ -909,6 +1241,111 @@
       result.className = type;
       result.textContent = text;
     }
+
+    /* ===== DASHBOARD ===== */
+
+    const statsEl = document.getElementById("stats");
+    const rowsEl = document.getElementById("rows");
+    const statusFilter = document.getElementById("filter-status");
+    const channelFilter = document.getElementById("filter-channel");
+
+    function fmtDate(iso) {
+      return new Date(iso).toLocaleString("pt-BR");
+    }
+
+    function shortId(id) {
+      return id.slice(0, 8) + "…";
+    }
+
+    async function loadStats() {
+      const res = await fetch(`${API_BASE}/api/v1/stats`);
+      const s = await res.json();
+
+      statsEl.innerHTML = `
+        <div class="stat-card"><div class="value">${s.total}</div><div class="label">Total</div></div>
+        <div class="stat-card"><div class="value">${s.pending}</div><div class="label">Pending</div></div>
+        <div class="stat-card"><div class="value">${s.success}</div><div class="label">Success</div></div>
+        <div class="stat-card"><div class="value">${s.retrying}</div><div class="label">Retrying</div></div>
+        <div class="stat-card"><div class="value">${s.dlq}</div><div class="label">DLQ</div></div>
+      `;
+    }
+
+    async function loadList() {
+      const params = new URLSearchParams({ limit: "50" });
+      if (statusFilter.value) params.set("status", statusFilter.value);
+      if (channelFilter.value) params.set("channel", channelFilter.value);
+
+      const res = await fetch(`${API_BASE}/api/v1/notifications?${params}`);
+      const items = await res.json();
+
+      if (!items || items.length === 0) {
+        rowsEl.innerHTML = `<tr><td colspan="7" class="empty-row">Nenhuma notificação encontrada.</td></tr>`;
+        return;
+      }
+
+      rowsEl.innerHTML = items.map(n => `
+        <tr>
+          <td class="mono" title="${n.id}">${shortId(n.id)}</td>
+          <td>${n.channel}</td>
+          <td><span class="status-badge ${n.status}">${n.status}</span></td>
+          <td>${n.attempts}/${n.max_attempts}</td>
+          <td class="error-cell" title="${n.last_error || ""}">${n.last_error || "—"}</td>
+          <td>${fmtDate(n.created_at)}</td>
+          <td>${(n.status === "retrying" || n.status === "dlq")
+            ? `<button class="retry-btn" data-id="${n.id}">Retry</button>`
+            : ""}</td>
+        </tr>
+      `).join("");
+
+      rowsEl.querySelectorAll(".retry-btn").forEach(btn => {
+        btn.addEventListener("click", () => retry(btn.dataset.id));
+      });
+    }
+
+    async function retry(id) {
+      const res = await fetch(`${API_BASE}/api/v1/notifications/${id}/retry`, { method: "POST" });
+      if (!res.ok) {
+        const data = await res.json();
+        alert("Falha ao reenfileirar: " + (data.error || "erro desconhecido"));
+        return;
+      }
+      refreshDashboard();
+    }
+
+    function refreshDashboard() {
+      loadStats();
+      loadList();
+    }
+
+    document.getElementById("refresh-btn").addEventListener("click", refreshDashboard);
+    statusFilter.addEventListener("change", refreshDashboard);
+    channelFilter.addEventListener("change", refreshDashboard);
+
+    setInterval(() => {
+      if (views.dashboard.classList.contains("active")) refreshDashboard();
+    }, 15000);
+
+    /* ===== STATUS DA API (rodapé) ===== */
+
+    async function checkApiStatus() {
+      const dot = document.getElementById("api-status-dot");
+      const text = document.getElementById("api-status-text");
+      try {
+        const res = await fetch(`${API_BASE}/health`);
+        if (res.ok) {
+          dot.className = "status-dot online";
+          text.textContent = "Notification Engine · online";
+        } else {
+          throw new Error("not ok");
+        }
+      } catch {
+        dot.className = "status-dot offline";
+        text.textContent = "Notification Engine · offline";
+      }
+    }
+
+    checkApiStatus();
+    setInterval(checkApiStatus, 10000);
   </script>
 
 </body>
