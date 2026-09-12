@@ -14,12 +14,13 @@ import (
 // CreateNotificationInput representa o payload aceito pela API para
 // criação de uma nova notificação.
 type CreateNotificationInput struct {
-	Channel domain.ChannelType `json:"channel"`
-	Target  string             `json:"target"`
-	Subject string             `json:"subject,omitempty"`
-	Message string             `json:"message"`
-	Payload map[string]any     `json:"payload,omitempty"`
-	Headers map[string]string  `json:"headers,omitempty"`
+	Channel     domain.ChannelType  `json:"channel"`
+	Target      string              `json:"target"`
+	Subject     string              `json:"subject,omitempty"`
+	Message     string              `json:"message"`
+	Payload     map[string]any      `json:"payload,omitempty"`
+	Headers     map[string]string   `json:"headers,omitempty"`
+	Attachments []domain.Attachment `json:"attachments,omitempty"`
 }
 
 // BulkResult é o resultado individual de um item enviado via /bulk: ID e
@@ -152,6 +153,7 @@ func (s *NotificationService) build(input CreateNotificationInput) *domain.Notif
 		Message:     input.Message,
 		Payload:     input.Payload,
 		Headers:     input.Headers,
+		Attachments: input.Attachments,
 		Status:      domain.StatusPending,
 		MaxAttempts: s.maxAttempts,
 		CreatedAt:   now,

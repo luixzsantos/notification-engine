@@ -3,6 +3,8 @@ package domain
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 )
 
@@ -28,11 +30,30 @@ const (
 
 // Erros de domínio conhecidos, usados para validação na camada de serviço.
 var (
-	ErrInvalidChannel = errors.New("canal de notificação inválido")
-	ErrEmptyTarget    = errors.New("o campo 'target' é obrigatório")
-	ErrEmptyMessage   = errors.New("o campo 'message' é obrigatório")
-	ErrNotFound       = errors.New("notificação não encontrada")
+	ErrInvalidChannel     = errors.New("canal de notificação inválido")
+	ErrEmptyTarget        = errors.New("o campo 'target' é obrigatório")
+	ErrEmptyMessage       = errors.New("o campo 'message' é obrigatório")
+	ErrNotFound           = errors.New("notificação não encontrada")
+	ErrTooManyAttachments = fmt.Errorf("no máximo %d anexos por notificação", MaxAttachments)
+	ErrAttachmentTooLarge = fmt.Errorf("cada anexo deve ter no máximo %dMB", MaxAttachmentBytes/1024/1024)
 )
+
+// Limites de anexos: alinhados ao teto mais restritivo entre os canais
+// suportados (Discord Webhook sem boost: 8MB por arquivo) para manter o
+// comportamento consistente em todos os canais.
+const (
+	MaxAttachments     = 5
+	MaxAttachmentBytes = 8 * 1024 * 1024 // 8MB por anexo, já decodificado
+)
+
+// Attachment representa um arquivo anexado a uma notificação (imagem,
+// documento etc). Data é o conteúdo em base64 puro (sem o prefixo
+// "data:<mime>;base64,").
+type Attachment struct {
+	Filename    string `json:"filename"`
+	ContentType string `json:"content_type"`
+	Data        string `json:"data"`
+}
 
 // Notification é a entidade central do domínio. Representa um evento de
 // notificação, desde a recepção via API até a entrega final pelo worker.
@@ -42,8 +63,9 @@ type Notification struct {
 	Target      string            `json:"target"`            // URL (discord/webhook), chat_id (telegram) ou e-mail do destinatário (email)
 	Subject     string            `json:"subject,omitempty"` // usado apenas pelo canal "email"
 	Message     string            `json:"message"`
-	Payload     map[string]any    `json:"payload,omitempty"` // corpo customizado (usado no webhook genérico)
-	Headers     map[string]string `json:"headers,omitempty"` // headers customizados (usado no webhook genérico)
+	Payload     map[string]any    `json:"payload,omitempty"`     // corpo customizado (usado no webhook genérico)
+	Headers     map[string]string `json:"headers,omitempty"`     // headers customizados (usado no webhook genérico)
+	Attachments []Attachment      `json:"attachments,omitempty"` // arquivos/fotos anexados
 	Status      Status            `json:"status"`
 	Attempts    int               `json:"attempts"`
 	MaxAttempts int               `json:"max_attempts"`
@@ -71,10 +93,35 @@ func (n *Notification) Validate() error {
 	if n.Target == "" {
 		return ErrEmptyTarget
 	}
-	if n.Message == "" && n.Payload == nil {
+	if n.Message == "" && n.Payload == nil && len(n.Attachments) == 0 {
 		return ErrEmptyMessage
 	}
+	if len(n.Attachments) > MaxAttachments {
+		return ErrTooManyAttachments
+	}
+	for i := range n.Attachments {
+		n.Attachments[i].Data = stripDataURIPrefix(n.Attachments[i].Data)
+		if decodedSize(n.Attachments[i].Data) > MaxAttachmentBytes {
+			return ErrAttachmentTooLarge
+		}
+	}
 	return nil
+}
+
+// stripDataURIPrefix remove um eventual prefixo "data:<mime>;base64," que o
+// cliente possa ter enviado junto do conteúdo (ex: copiado direto de um
+// <input type="file"> lido via FileReader.readAsDataURL).
+func stripDataURIPrefix(data string) string {
+	if idx := strings.Index(data, ";base64,"); idx != -1 && strings.HasPrefix(data, "data:") {
+		return data[idx+len(";base64,"):]
+	}
+	return data
+}
+
+// decodedSize estima o tamanho em bytes do conteúdo original a partir do
+// comprimento da string base64 (aprox. 3/4 do tamanho codificado).
+func decodedSize(base64Data string) int {
+	return len(base64Data) / 4 * 3
 }
 
 // ListFilter restringe uma consulta de notificações por status e/ou canal.

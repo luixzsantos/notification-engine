@@ -23,7 +23,7 @@ func NewNotificationRepository(conn *sql.DB) *NotificationRepository {
 }
 
 const selectColumns = `
-	id, channel, target, subject, message, payload, headers,
+	id, channel, target, subject, message, payload, headers, attachments,
 	status, attempts, max_attempts, last_error, next_retry_at,
 	created_at, updated_at`
 
@@ -38,13 +38,18 @@ func (r *NotificationRepository) Create(ctx context.Context, n *domain.Notificat
 		return fmt.Errorf("db: falha ao serializar headers: %w", err)
 	}
 
+	attachments, err := json.Marshal(orEmptyAttachments(n.Attachments))
+	if err != nil {
+		return fmt.Errorf("db: falha ao serializar anexos: %w", err)
+	}
+
 	_, err = r.conn.ExecContext(ctx, `
 		INSERT INTO notifications
-			(id, channel, target, subject, message, payload, headers,
+			(id, channel, target, subject, message, payload, headers, attachments,
 			 status, attempts, max_attempts, last_error, next_retry_at,
 			 created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
-		n.ID, n.Channel, n.Target, n.Subject, n.Message, payload, headers,
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+		n.ID, n.Channel, n.Target, n.Subject, n.Message, payload, headers, attachments,
 		n.Status, n.Attempts, n.MaxAttempts, n.LastError, n.NextRetryAt,
 		n.CreatedAt, n.UpdatedAt,
 	)
@@ -207,11 +212,11 @@ type row interface {
 
 func scanNotification(r row) (*domain.Notification, error) {
 	var n domain.Notification
-	var payload, headers []byte
+	var payload, headers, attachments []byte
 	var nextRetryAt sql.NullTime
 
 	err := r.Scan(
-		&n.ID, &n.Channel, &n.Target, &n.Subject, &n.Message, &payload, &headers,
+		&n.ID, &n.Channel, &n.Target, &n.Subject, &n.Message, &payload, &headers, &attachments,
 		&n.Status, &n.Attempts, &n.MaxAttempts, &n.LastError, &nextRetryAt,
 		&n.CreatedAt, &n.UpdatedAt,
 	)
@@ -224,6 +229,9 @@ func scanNotification(r row) (*domain.Notification, error) {
 	}
 	if err := json.Unmarshal(headers, &n.Headers); err != nil {
 		return nil, fmt.Errorf("headers inválidos: %w", err)
+	}
+	if err := json.Unmarshal(attachments, &n.Attachments); err != nil {
+		return nil, fmt.Errorf("anexos inválidos: %w", err)
 	}
 	if nextRetryAt.Valid {
 		n.NextRetryAt = &nextRetryAt.Time
@@ -262,6 +270,13 @@ func orEmptyStringMap(m map[string]string) map[string]string {
 		return map[string]string{}
 	}
 	return m
+}
+
+func orEmptyAttachments(a []domain.Attachment) []domain.Attachment {
+	if a == nil {
+		return []domain.Attachment{}
+	}
+	return a
 }
 
 // buildDSN monta a connection string do PostgreSQL a partir das partes

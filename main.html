@@ -23,6 +23,8 @@
       --hover: #35373c;
       --active: #404249;
 
+      --accent: #5865f2;
+
       --success-bg: #2f3237;
       --success-border: #666b73;
       --error-bg: #2f3033;
@@ -41,7 +43,7 @@
     html,
     body {
       width: 100%;
-      height: 100%;
+      min-height: 100%;
       margin: 0;
     }
 
@@ -56,8 +58,10 @@
         Helvetica,
         Arial,
         sans-serif;
+    }
 
-      overflow: hidden;
+    button {
+      font-family: inherit;
     }
 
     /* =========================
@@ -68,6 +72,54 @@
       display: flex;
       width: 100%;
       height: 100vh;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    /* =========================
+       MOBILE TOPBAR
+    ========================= */
+
+    .mobile-topbar {
+      display: none;
+      align-items: center;
+      gap: 10px;
+
+      height: 52px;
+      min-height: 52px;
+      padding: 0 14px;
+
+      background: var(--sidebar);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .menu-btn {
+      width: 32px;
+      height: 32px;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      cursor: pointer;
+      font-size: 16px;
+      line-height: 1;
+    }
+
+    .menu-btn:hover {
+      background: var(--hover);
+    }
+
+    .sidebar-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, .5);
+      z-index: 15;
     }
 
     /* =========================
@@ -82,10 +134,12 @@
 
       display: flex;
       flex-direction: column;
+      overflow-y: auto;
     }
 
     .sidebar-header {
       height: 52px;
+      min-height: 52px;
       padding: 0 16px;
 
       display: flex;
@@ -98,19 +152,23 @@
       color: var(--text-bright);
     }
 
-    .engine-icon {
-      width: 28px;
-      height: 28px;
-      margin-right: 9px;
+    .engine-mark {
+      width: 26px;
+      height: 26px;
+      margin-right: 10px;
+      flex-shrink: 0;
 
       display: flex;
       align-items: center;
       justify-content: center;
 
-      border-radius: 7px;
-      background: #1e1f22;
+      border-radius: 6px;
+      background: var(--accent);
 
-      font-size: 14px;
+      font-size: 12px;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: -.02em;
     }
 
     .sidebar-title {
@@ -120,12 +178,12 @@
     }
 
     .sidebar-section {
-      padding: 20px 10px 8px;
+      padding: 18px 10px 6px;
     }
 
     .section-title {
       padding: 0 8px;
-      margin-bottom: 7px;
+      margin-bottom: 6px;
 
       color: var(--muted);
       font-size: 11px;
@@ -136,17 +194,18 @@
 
     .channel {
       width: 100%;
-      height: 36px;
+      min-height: 36px;
 
-      padding: 0 9px;
+      padding: 8px 9px;
 
       display: flex;
       align-items: center;
+      gap: 9px;
 
       border-radius: 5px;
 
       color: var(--muted);
-      font-size: 14px;
+      font-size: 13.5px;
 
       cursor: pointer;
       transition:
@@ -157,6 +216,7 @@
       border: none;
       text-align: left;
       font-family: inherit;
+      text-decoration: none;
     }
 
     .channel:hover {
@@ -170,30 +230,24 @@
     }
 
     .channel-icon {
-      width: 24px;
+      width: 18px;
+      flex-shrink: 0;
+      text-align: center;
       color: var(--muted-dark);
-      font-size: 17px;
+      font-size: 15px;
     }
 
     .channel.active .channel-icon {
       color: var(--text);
     }
 
-    .channel-status-dot {
-      width: 7px;
-      height: 7px;
-      margin-left: auto;
-      border-radius: 50%;
-      background: var(--muted-dark);
-      flex-shrink: 0;
+    .channel.static {
+      cursor: default;
     }
 
-    .channel-status-dot.online {
-      background: var(--success);
-    }
-
-    .channel-status-dot.offline {
-      background: var(--dlq);
+    .channel.static:hover {
+      background: none;
+      color: var(--muted);
     }
 
     /* =========================
@@ -229,16 +283,17 @@
 
     .header-icon {
       margin-right: 9px;
+      flex-shrink: 0;
 
       color: var(--muted);
-      font-size: 21px;
-      font-weight: 300;
+      font-size: 17px;
     }
 
     .header-title {
       color: var(--text-bright);
       font-size: 15px;
       font-weight: 700;
+      white-space: nowrap;
     }
 
     .header-divider {
@@ -248,15 +303,20 @@
       margin: 0 12px;
 
       background: #45474d;
+      flex-shrink: 0;
     }
 
     .header-description {
       color: var(--muted);
       font-size: 13px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .header-spacer {
       flex: 1;
+      min-width: 8px;
     }
 
     .header-link {
@@ -267,6 +327,7 @@
       color: var(--muted);
       font-size: 12px;
       text-decoration: none;
+      white-space: nowrap;
 
       padding: 6px 10px;
       border-radius: 5px;
@@ -287,17 +348,19 @@
     .content {
       flex: 1;
       min-height: 0;
+      min-width: 0;
 
       display: flex;
       justify-content: center;
 
       overflow-y: auto;
-      padding: 32px 28px;
+      padding: 28px;
     }
 
     .view {
       display: none;
       width: 100%;
+      min-width: 0;
     }
 
     .view.active {
@@ -307,43 +370,26 @@
 
     .content-inner {
       width: 100%;
-      max-width: 760px;
+      max-width: 720px;
+      min-width: 0;
 
       padding-bottom: 30px;
     }
 
     .content-inner.wide {
-      max-width: 1080px;
+      max-width: 1100px;
     }
 
     .welcome {
-      margin-bottom: 30px;
-    }
-
-    .welcome-icon {
-      width: 54px;
-      height: 54px;
-
-      margin-bottom: 14px;
-
-      display: flex;
-      align-items: center;
-      justify-content: center;
-
-      border-radius: 14px;
-      background: #25262a;
-
-      border: 1px solid #3a3c41;
-
-      font-size: 25px;
+      margin-bottom: 26px;
     }
 
     .welcome h1 {
-      margin: 0 0 7px;
+      margin: 0 0 6px;
 
       color: var(--text-bright);
 
-      font-size: 24px;
+      font-size: 22px;
       line-height: 1.25;
       font-weight: 700;
     }
@@ -371,7 +417,7 @@
     }
 
     .form-header {
-      margin-bottom: 20px;
+      margin-bottom: 18px;
     }
 
     .form-header-title {
@@ -409,7 +455,7 @@
     }
 
     select,
-    input,
+    input[type="text"],
     textarea {
       width: 100%;
 
@@ -455,7 +501,7 @@
     }
 
     textarea {
-      min-height: 125px;
+      min-height: 110px;
       resize: vertical;
       line-height: 1.5;
     }
@@ -505,6 +551,137 @@
     }
 
     /* =========================
+       ATTACHMENTS
+    ========================= */
+
+    .dropzone {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+
+      padding: 20px 14px;
+
+      background: var(--input);
+      border: 1.5px dashed #4a4d54;
+      border-radius: 6px;
+
+      text-align: center;
+      cursor: pointer;
+
+      transition: border-color .12s ease, background .12s ease;
+    }
+
+    .dropzone:hover,
+    .dropzone.dragover {
+      border-color: var(--accent);
+      background: #3a3c42;
+    }
+
+    .dropzone-title {
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .dropzone-hint {
+      color: var(--muted);
+      font-size: 11.5px;
+    }
+
+    #file-input {
+      display: none;
+    }
+
+    .attachment-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 10px;
+    }
+
+    .attachment-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+
+      padding: 8px 10px;
+
+      background: var(--input);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+    }
+
+    .attachment-thumb {
+      width: 32px;
+      height: 32px;
+      flex-shrink: 0;
+
+      border-radius: 4px;
+      background: #25262a;
+      border: 1px solid var(--border);
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      font-size: 12px;
+      color: var(--muted);
+
+      object-fit: cover;
+    }
+
+    .attachment-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .attachment-name {
+      color: var(--text);
+      font-size: 12.5px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .attachment-size {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .attachment-remove {
+      flex-shrink: 0;
+
+      width: 24px;
+      height: 24px;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+
+      color: var(--muted);
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .attachment-remove:hover {
+      color: var(--dlq);
+      border-color: var(--dlq);
+    }
+
+    .attachment-error {
+      margin-top: 8px;
+
+      color: var(--dlq);
+      font-size: 11.5px;
+    }
+
+    /* =========================
        BUTTON
     ========================= */
 
@@ -514,14 +691,13 @@
       margin-top: 20px;
       padding: 10px 16px;
 
-      background: #1e1f22;
+      background: var(--accent);
 
-      border: 1px solid #45474d;
+      border: 1px solid var(--accent);
       border-radius: 5px;
 
-      color: var(--text-bright);
+      color: #fff;
 
-      font-family: inherit;
       font-size: 14px;
       font-weight: 600;
 
@@ -529,16 +705,17 @@
 
       transition:
         background .12s ease,
-        border-color .12s ease;
+        border-color .12s ease,
+        opacity .12s ease;
     }
 
     button.primary:hover:not(:disabled) {
-      background: #3a3c41;
-      border-color: #5a5d64;
+      background: #4954da;
+      border-color: #4954da;
     }
 
     button.primary:active:not(:disabled) {
-      background: #25262a;
+      opacity: .85;
     }
 
     button.primary:disabled {
@@ -589,37 +766,39 @@
 
     .stats {
       display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 12px;
-      margin-bottom: 20px;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 10px;
+      margin-bottom: 18px;
     }
 
     .stat-card {
       background: #2b2d31;
       border: 1px solid var(--border);
       border-radius: 8px;
-      padding: 14px 16px;
+      padding: 12px 14px;
+      min-width: 0;
     }
 
     .stat-card .value {
-      font-size: 22px;
+      font-size: 20px;
       font-weight: 700;
       color: var(--text-bright);
     }
 
     .stat-card .label {
-      font-size: 11px;
+      font-size: 10.5px;
       text-transform: uppercase;
       letter-spacing: .03em;
       color: var(--muted);
-      margin-top: 4px;
+      margin-top: 3px;
     }
 
     .toolbar {
       display: flex;
+      flex-wrap: wrap;
       gap: 10px;
       align-items: center;
-      margin-bottom: 16px;
+      margin-bottom: 14px;
     }
 
     .toolbar select,
@@ -630,7 +809,6 @@
       border-radius: 5px;
       padding: 7px 10px;
       font-size: 13px;
-      font-family: inherit;
       cursor: pointer;
       width: auto;
       margin-top: 0;
@@ -643,22 +821,29 @@
 
     .toolbar .spacer {
       flex: 1;
+      min-width: 4px;
+    }
+
+    .table-wrapper {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #2b2d31;
     }
 
     table {
       width: 100%;
+      min-width: 720px;
       border-collapse: collapse;
-      background: #2b2d31;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      overflow: hidden;
     }
 
-    th, td {
+    th,
+    td {
       text-align: left;
       padding: 10px 12px;
       border-bottom: 1px solid var(--border);
       font-size: 13px;
+      white-space: nowrap;
     }
 
     th {
@@ -688,13 +873,28 @@
       text-transform: uppercase;
     }
 
-    .status-badge.pending { background: rgba(109,113,120,.2); color: var(--pending); }
-    .status-badge.success { background: rgba(76,175,125,.15); color: var(--success); }
-    .status-badge.retrying { background: rgba(217,164,65,.15); color: var(--retrying); }
-    .status-badge.dlq { background: rgba(217,83,79,.15); color: var(--dlq); }
+    .status-badge.pending {
+      background: rgba(109, 113, 120, .2);
+      color: var(--pending);
+    }
+
+    .status-badge.success {
+      background: rgba(76, 175, 125, .15);
+      color: var(--success);
+    }
+
+    .status-badge.retrying {
+      background: rgba(217, 164, 65, .15);
+      color: var(--retrying);
+    }
+
+    .status-badge.dlq {
+      background: rgba(217, 83, 79, .15);
+      color: var(--dlq);
+    }
 
     .error-cell {
-      max-width: 240px;
+      max-width: 260px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -705,12 +905,14 @@
     .retry-btn {
       padding: 4px 10px !important;
       font-size: 12px !important;
+      white-space: nowrap;
     }
 
     .empty-row {
       text-align: center;
       color: var(--muted);
       padding: 30px;
+      white-space: normal;
     }
 
     /* =========================
@@ -718,13 +920,14 @@
     ========================= */
 
     .bottom-bar {
-      height: 58px;
-      min-height: 58px;
+      min-height: 50px;
 
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
+      gap: 8px;
 
-      padding: 0 24px;
+      padding: 10px 24px;
 
       border-top: 1px solid var(--border);
 
@@ -739,11 +942,13 @@
       color: var(--muted);
 
       font-size: 11px;
+      white-space: nowrap;
     }
 
     .status-dot {
       width: 7px;
       height: 7px;
+      flex-shrink: 0;
 
       border-radius: 50%;
 
@@ -763,10 +968,11 @@
 
       color: var(--muted-dark);
 
-      font-family: monospace;
+      font-family: ui-monospace, monospace;
       font-size: 11px;
 
       display: flex;
+      flex-wrap: wrap;
       gap: 14px;
     }
 
@@ -786,6 +992,7 @@
 
     ::-webkit-scrollbar {
       width: 8px;
+      height: 8px;
     }
 
     ::-webkit-scrollbar-track {
@@ -806,21 +1013,38 @@
     ========================= */
 
     @media (max-width: 900px) {
-      .stats {
-        grid-template-columns: repeat(2, 1fr);
+      .mobile-topbar {
+        display: flex;
       }
-    }
 
-    @media (max-width: 700px) {
+      .app {
+        flex-direction: column;
+      }
+
       .sidebar {
-        display: none;
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        left: -270px;
+        z-index: 20;
+
+        width: 250px;
+        min-width: 250px;
+
+        transition: left .18s ease;
+
+        box-shadow: 2px 0 18px rgba(0, 0, 0, .35);
+      }
+
+      .sidebar.open {
+        left: 0;
+      }
+
+      .sidebar-backdrop.open {
+        display: block;
       }
 
       .content {
-        padding: 24px 16px;
-      }
-
-      .form-card {
         padding: 18px;
       }
 
@@ -828,13 +1052,32 @@
       .header-divider {
         display: none;
       }
+    }
+
+    @media (max-width: 560px) {
+      .content {
+        padding: 14px;
+      }
+
+      .form-card {
+        padding: 16px;
+      }
+
+      .chat-header {
+        padding: 0 14px;
+      }
+
+      .header-link span.link-label {
+        display: none;
+      }
 
       .bottom-bar {
-        padding: 0 16px;
+        padding: 10px 14px;
       }
 
       .api-info {
-        display: none;
+        font-size: 10px;
+        gap: 10px;
       }
     }
   </style>
@@ -843,16 +1086,26 @@
 
 <body>
 
+  <!-- MOBILE TOPBAR -->
+
+  <div class="mobile-topbar">
+    <button class="menu-btn" id="menu-btn" type="button" aria-label="Abrir menu">≡</button>
+    <div class="engine-mark">N</div>
+    <div class="sidebar-title" style="color:var(--text-bright); font-weight:700; font-size:14px;">Notification Engine</div>
+  </div>
+
+  <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
   <div class="app">
 
     <!-- =========================
      SIDEBAR
 ========================== -->
 
-    <aside class="sidebar">
+    <aside class="sidebar" id="sidebar">
 
       <div class="sidebar-header">
-        <div class="engine-icon">⚡</div>
+        <div class="engine-mark">N</div>
         <div class="sidebar-title">Notification Engine</div>
       </div>
 
@@ -862,12 +1115,12 @@
           Notificações
         </div>
 
-        <button class="channel active" data-view="send">
+        <button class="channel active" data-view="send" type="button">
           <span class="channel-icon">#</span>
           <span>enviar</span>
         </button>
 
-        <button class="channel" data-view="dashboard">
+        <button class="channel" data-view="dashboard" type="button">
           <span class="channel-icon">▤</span>
           <span>dashboard</span>
         </button>
@@ -903,22 +1156,22 @@
           Canais disponíveis
         </div>
 
-        <div class="channel" style="cursor:default">
+        <div class="channel static">
           <span class="channel-icon">◈</span>
           <span>Discord</span>
         </div>
 
-        <div class="channel" style="cursor:default">
+        <div class="channel static">
           <span class="channel-icon">◇</span>
           <span>Telegram</span>
         </div>
 
-        <div class="channel" style="cursor:default">
+        <div class="channel static">
           <span class="channel-icon">□</span>
           <span>Email</span>
         </div>
 
-        <div class="channel" style="cursor:default">
+        <div class="channel static">
           <span class="channel-icon">↗</span>
           <span>Webhook</span>
         </div>
@@ -953,7 +1206,7 @@
         <span class="header-spacer"></span>
 
         <a class="header-link" href="http://localhost:9090" target="_blank" rel="noopener">
-          ◎ Prometheus
+          ◎ <span class="link-label">Prometheus</span>
         </a>
 
       </header>
@@ -1046,6 +1299,22 @@
                 <textarea id="message" placeholder="Escreva a mensagem aqui..."></textarea>
 
 
+                <label>
+                  Anexos
+                  <span class="badge">opcional · até 5 · 8MB cada</span>
+                </label>
+
+                <div class="dropzone" id="dropzone">
+                  <div class="dropzone-title">Clique para escolher ou arraste arquivos aqui</div>
+                  <div class="dropzone-hint">Imagens, PDFs, documentos... até 5 arquivos de 8MB cada</div>
+                </div>
+
+                <input type="file" id="file-input" multiple>
+
+                <div class="attachment-list" id="attachment-list"></div>
+                <div class="attachment-error" id="attachment-error"></div>
+
+
                 <button type="submit" class="primary" id="submit-btn">
                   Enviar notificação
                 </button>
@@ -1086,23 +1355,25 @@
 
               <div class="spacer"></div>
 
-              <button id="refresh-btn">Atualizar</button>
+              <button id="refresh-btn" type="button">Atualizar</button>
             </div>
 
-            <table>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Canal</th>
-                  <th>Status</th>
-                  <th>Tentativas</th>
-                  <th>Último erro</th>
-                  <th>Criado em</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody id="rows"></tbody>
-            </table>
+            <div class="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Canal</th>
+                    <th>Status</th>
+                    <th>Tentativas</th>
+                    <th>Último erro</th>
+                    <th>Criado em</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="rows"></tbody>
+              </table>
+            </div>
 
           </div>
         </div>
@@ -1138,6 +1409,36 @@
     const API_BASE = "http://localhost:8080";
     const API_URL = `${API_BASE}/api/v1/notifications`;
 
+    const MAX_ATTACHMENTS = 5;
+    const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024;
+
+    /* ===== ESCAPE HTML (evita quebra de layout / XSS com dados vindos de respostas externas) ===== */
+
+    function escapeHtml(value) {
+      const div = document.createElement("div");
+      div.textContent = value ?? "";
+      return div.innerHTML;
+    }
+
+    /* ===== MENU MOBILE ===== */
+
+    const sidebar = document.getElementById("sidebar");
+    const backdrop = document.getElementById("sidebar-backdrop");
+    const menuBtn = document.getElementById("menu-btn");
+
+    function openSidebar() {
+      sidebar.classList.add("open");
+      backdrop.classList.add("open");
+    }
+
+    function closeSidebar() {
+      sidebar.classList.remove("open");
+      backdrop.classList.remove("open");
+    }
+
+    menuBtn.addEventListener("click", openSidebar);
+    backdrop.addEventListener("click", closeSidebar);
+
     /* ===== NAVEGAÇÃO ENTRE VIEWS ===== */
 
     const navButtons = document.querySelectorAll(".channel[data-view]");
@@ -1159,6 +1460,7 @@
       document.getElementById("header-title").textContent = headerConfig[name].title;
       document.getElementById("header-description").textContent = headerConfig[name].description;
 
+      closeSidebar();
       if (name === "dashboard") refreshDashboard();
     }
 
@@ -1166,7 +1468,7 @@
       btn.addEventListener("click", () => switchView(btn.dataset.view));
     });
 
-    /* ===== FORMULÁRIO DE ENVIO ===== */
+    /* ===== FORMULÁRIO: CAMPOS POR CANAL ===== */
 
     const channelSelect = document.getElementById("channel");
     const targetGroup = document.getElementById("group-target");
@@ -1194,6 +1496,148 @@
     channelSelect.addEventListener("change", updateFields);
     updateFields();
 
+    /* ===== ANEXOS (arquivos / fotos) ===== */
+
+    const dropzone = document.getElementById("dropzone");
+    const fileInput = document.getElementById("file-input");
+    const attachmentList = document.getElementById("attachment-list");
+    const attachmentError = document.getElementById("attachment-error");
+
+    let attachments = []; // { filename, contentType, data (base64), size, previewUrl }
+
+    dropzone.addEventListener("click", () => fileInput.click());
+
+    dropzone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      dropzone.classList.add("dragover");
+    });
+
+    dropzone.addEventListener("dragleave", () => dropzone.classList.remove("dragover"));
+
+    dropzone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      dropzone.classList.remove("dragover");
+      handleFiles(e.dataTransfer.files);
+    });
+
+    fileInput.addEventListener("change", () => {
+      handleFiles(fileInput.files);
+      fileInput.value = "";
+    });
+
+    function formatSize(bytes) {
+      if (bytes < 1024) return `${bytes} B`;
+      if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    }
+
+    function fileToBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result;
+          const base64 = result.substring(result.indexOf(",") + 1);
+          resolve(base64);
+        };
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function handleFiles(fileList) {
+      attachmentError.textContent = "";
+
+      const incoming = Array.from(fileList);
+      if (incoming.length === 0) return;
+
+      if (attachments.length + incoming.length > MAX_ATTACHMENTS) {
+        attachmentError.textContent = `Máximo de ${MAX_ATTACHMENTS} anexos por notificação.`;
+        return;
+      }
+
+      for (const file of incoming) {
+        if (file.size > MAX_ATTACHMENT_BYTES) {
+          attachmentError.textContent = `"${file.name}" excede o limite de 8MB e foi ignorado.`;
+          continue;
+        }
+
+        try {
+          const base64 = await fileToBase64(file);
+          const previewUrl = file.type.startsWith("image/") ? URL.createObjectURL(file) : null;
+
+          attachments.push({
+            filename: file.name,
+            contentType: file.type || "application/octet-stream",
+            data: base64,
+            size: file.size,
+            previewUrl
+          });
+        } catch (err) {
+          attachmentError.textContent = `Falha ao ler "${file.name}".`;
+        }
+      }
+
+      renderAttachments();
+    }
+
+    function renderAttachments() {
+      attachmentList.innerHTML = "";
+
+      attachments.forEach((att, index) => {
+        const item = document.createElement("div");
+        item.className = "attachment-item";
+
+        const thumb = document.createElement("div");
+        thumb.className = "attachment-thumb";
+        if (att.previewUrl) {
+          const img = document.createElement("img");
+          img.src = att.previewUrl;
+          img.style.cssText = "width:100%;height:100%;object-fit:cover;border-radius:4px;";
+          thumb.appendChild(img);
+        } else {
+          thumb.textContent = "◱";
+        }
+
+        const info = document.createElement("div");
+        info.className = "attachment-info";
+
+        const name = document.createElement("div");
+        name.className = "attachment-name";
+        name.textContent = att.filename;
+
+        const size = document.createElement("div");
+        size.className = "attachment-size";
+        size.textContent = formatSize(att.size);
+
+        info.appendChild(name);
+        info.appendChild(size);
+
+        const removeBtn = document.createElement("button");
+        removeBtn.type = "button";
+        removeBtn.className = "attachment-remove";
+        removeBtn.textContent = "×";
+        removeBtn.addEventListener("click", () => {
+          if (attachments[index].previewUrl) URL.revokeObjectURL(attachments[index].previewUrl);
+          attachments.splice(index, 1);
+          renderAttachments();
+        });
+
+        item.appendChild(thumb);
+        item.appendChild(info);
+        item.appendChild(removeBtn);
+        attachmentList.appendChild(item);
+      });
+    }
+
+    function resetAttachments() {
+      attachments.forEach(att => { if (att.previewUrl) URL.revokeObjectURL(att.previewUrl); });
+      attachments = [];
+      renderAttachments();
+      attachmentError.textContent = "";
+    }
+
+    /* ===== ENVIO ===== */
+
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
 
@@ -1202,14 +1646,21 @@
       const subject = document.getElementById("subject").value.trim();
       const message = document.getElementById("message").value.trim();
 
-      if (!message) {
-        showResult("error", "Escreva uma mensagem antes de enviar.");
+      if (!message && attachments.length === 0) {
+        showResult("error", "Escreva uma mensagem ou anexe ao menos um arquivo antes de enviar.");
         return;
       }
 
       const body = { channel, message };
       if (target) body.target = target;
       if (channel === "email" && subject) body.subject = subject;
+      if (attachments.length > 0) {
+        body.attachments = attachments.map(a => ({
+          filename: a.filename,
+          content_type: a.contentType,
+          data: a.data
+        }));
+      }
 
       submitBtn.disabled = true;
       submitBtn.textContent = "Enviando...";
@@ -1228,6 +1679,7 @@
         } else {
           showResult("success", `Enfileirado! id: ${data.id} — status: ${data.status}. Veja o Dashboard para acompanhar a entrega.`);
           document.getElementById("message").value = "";
+          resetAttachments();
         }
       } catch (err) {
         showResult("error", "Não foi possível conectar na API. Ela está rodando em localhost:8080?");
@@ -1283,19 +1735,27 @@
         return;
       }
 
-      rowsEl.innerHTML = items.map(n => `
+      rowsEl.innerHTML = items.map(n => {
+        const status = escapeHtml(n.status);
+        const validStatus = ["pending", "success", "retrying", "dlq"].includes(n.status) ? n.status : "pending";
+        const attachmentsBadge = (n.attachments && n.attachments.length > 0)
+          ? ` <span class="badge" title="${n.attachments.length} anexo(s)">anexos: ${n.attachments.length}</span>`
+          : "";
+
+        return `
         <tr>
-          <td class="mono" title="${n.id}">${shortId(n.id)}</td>
-          <td>${n.channel}</td>
-          <td><span class="status-badge ${n.status}">${n.status}</span></td>
-          <td>${n.attempts}/${n.max_attempts}</td>
-          <td class="error-cell" title="${n.last_error || ""}">${n.last_error || "—"}</td>
-          <td>${fmtDate(n.created_at)}</td>
+          <td class="mono" title="${escapeHtml(n.id)}">${escapeHtml(shortId(n.id))}</td>
+          <td>${escapeHtml(n.channel)}</td>
+          <td><span class="status-badge ${validStatus}">${status}</span>${attachmentsBadge}</td>
+          <td>${escapeHtml(n.attempts)}/${escapeHtml(n.max_attempts)}</td>
+          <td class="error-cell" title="${escapeHtml(n.last_error || "")}">${escapeHtml(n.last_error || "—")}</td>
+          <td>${escapeHtml(fmtDate(n.created_at))}</td>
           <td>${(n.status === "retrying" || n.status === "dlq")
-            ? `<button class="retry-btn" data-id="${n.id}">Retry</button>`
+            ? `<button class="retry-btn" data-id="${escapeHtml(n.id)}" type="button">Retry</button>`
             : ""}</td>
         </tr>
-      `).join("");
+      `;
+      }).join("");
 
       rowsEl.querySelectorAll(".retry-btn").forEach(btn => {
         btn.addEventListener("click", () => retry(btn.dataset.id));

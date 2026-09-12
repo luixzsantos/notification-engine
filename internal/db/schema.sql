@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS notifications (
     message       TEXT NOT NULL DEFAULT '',
     payload       JSONB NOT NULL DEFAULT '{}',
     headers       JSONB NOT NULL DEFAULT '{}',
+    attachments   JSONB NOT NULL DEFAULT '[]',
     status        TEXT NOT NULL,
     attempts      INTEGER NOT NULL DEFAULT 0,
     max_attempts  INTEGER NOT NULL DEFAULT 5,
@@ -18,6 +19,9 @@ CREATE TABLE IF NOT EXISTS notifications (
     created_at    TIMESTAMPTZ NOT NULL,
     updated_at    TIMESTAMPTZ NOT NULL
 );
+
+-- Cobre instalações que criaram a tabela antes do campo attachments existir.
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS attachments JSONB NOT NULL DEFAULT '[]';
 
 CREATE INDEX IF NOT EXISTS idx_notifications_status ON notifications (status);
 CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications (created_at DESC);

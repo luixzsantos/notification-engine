@@ -27,17 +27,25 @@ func (s *WebhookSender) Channel() domain.ChannelType {
 
 // Send envia a notificação para n.Target (URL arbitrária). Se n.Payload for
 // informado, ele é usado como corpo da requisição; caso contrário, um corpo
-// padrão { "message": "..." } é enviado. Headers customizados de n.Headers
-// são aplicados sobre a requisição.
+// padrão { "message": "..." } é enviado. Anexos (n.Attachments), quando
+// presentes, são incluídos em base64 na chave "attachments" do corpo.
+// Headers customizados de n.Headers são aplicados sobre a requisição.
 func (s *WebhookSender) Send(ctx context.Context, n *domain.Notification) error {
-	var bodyBytes []byte
-	var err error
-
+	body := make(map[string]any)
 	if n.Payload != nil {
-		bodyBytes, err = json.Marshal(n.Payload)
+		for k, v := range n.Payload {
+			body[k] = v
+		}
 	} else {
-		bodyBytes, err = json.Marshal(map[string]string{"message": n.Message})
+		body["message"] = n.Message
 	}
+	if len(n.Attachments) > 0 {
+		if _, exists := body["attachments"]; !exists {
+			body["attachments"] = n.Attachments
+		}
+	}
+
+	bodyBytes, err := json.Marshal(body)
 	if err != nil {
 		return fmt.Errorf("webhook: falha ao serializar payload: %w", err)
 	}

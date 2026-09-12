@@ -16,6 +16,14 @@ import (
 // que uma única requisição sobrecarregue a fila.
 const maxBulkSize = 500
 
+// Limites de corpo de requisição, dimensionados para comportar anexos em
+// base64 (até domain.MaxAttachments arquivos de domain.MaxAttachmentBytes
+// cada, mais a sobrecarga de ~37% da codificação base64).
+const (
+	maxCreateBodyBytes = 64 << 20  // 64MB — uma notificação com até 5 anexos de 8MB
+	maxBulkBodyBytes   = 128 << 20 // 128MB — lote de notificações
+)
+
 // NotificationHandler expõe os endpoints HTTP relacionados a notificações.
 type NotificationHandler struct {
 	service *service.NotificationService
@@ -37,10 +45,12 @@ type errorResponse struct {
 
 // Create trata POST /api/v1/notifications
 func (h *NotificationHandler) Create(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxCreateBodyBytes)
+
 	var input service.CreateNotificationInput
 
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "corpo da requisição inválido (JSON malformado)"})
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "corpo da requisição inválido (JSON malformado ou excede o tamanho máximo permitido)"})
 		return
 	}
 	defer r.Body.Close()
@@ -66,10 +76,12 @@ func (h *NotificationHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 // Bulk trata POST /api/v1/notifications/bulk
 func (h *NotificationHandler) Bulk(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxBulkBodyBytes)
+
 	var inputs []service.CreateNotificationInput
 
 	if err := json.NewDecoder(r.Body).Decode(&inputs); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "corpo da requisição inválido (esperado um array de notificações)"})
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "corpo da requisição inválido (esperado um array de notificações, ou excede o tamanho máximo permitido)"})
 		return
 	}
 	defer r.Body.Close()
@@ -156,7 +168,9 @@ func (h *NotificationHandler) HealthCheck(w http.ResponseWriter, r *http.Request
 func isValidationError(err error) bool {
 	return errors.Is(err, domain.ErrInvalidChannel) ||
 		errors.Is(err, domain.ErrEmptyTarget) ||
-		errors.Is(err, domain.ErrEmptyMessage)
+		errors.Is(err, domain.ErrEmptyMessage) ||
+		errors.Is(err, domain.ErrTooManyAttachments) ||
+		errors.Is(err, domain.ErrAttachmentTooLarge)
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {

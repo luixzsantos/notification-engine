@@ -2,6 +2,7 @@ package channel
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"net/smtp"
 	"strings"
@@ -36,6 +37,8 @@ func (s *GmailSender) Channel() domain.ChannelType {
 
 // Send envia a notificação por e-mail. n.Target deve ser o endereço de
 // e-mail do destinatário. n.Subject é opcional (usa um default se vazio).
+// Anexos (n.Attachments), quando presentes, são enviados como
+// multipart/mixed em base64.
 func (s *GmailSender) Send(ctx context.Context, n *domain.Notification) error {
 	if s.username == "" || s.appPassword == "" {
 		return fmt.Errorf("gmail: GMAIL_USERNAME/GMAIL_APP_PASSWORD não configurados")
@@ -44,6 +47,24 @@ func (s *GmailSender) Send(ctx context.Context, n *domain.Notification) error {
 		return fmt.Errorf("gmail: 'target' (e-mail do destinatário) é obrigatório")
 	}
 
+	msg, err := s.buildMessage(n)
+	if err != nil {
+		return err
+	}
+
+	addr := fmt.Sprintf("%s:%s", s.host, s.port)
+	auth := smtp.PlainAuth("", s.username, s.appPassword, s.host)
+
+	// net/smtp.SendMail já negocia STARTTLS automaticamente com o Gmail
+	// na porta 587, então não é necessário gerenciar TLS manualmente.
+	if err := smtp.SendMail(addr, auth, s.username, []string{n.Target}, msg); err != nil {
+		return fmt.Errorf("gmail: falha ao enviar e-mail via SMTP: %w", err)
+	}
+
+	return nil
+}
+
+func (s *GmailSender) buildMessage(n *domain.Notification) ([]byte, error) {
 	subject := n.Subject
 	if subject == "" {
 		subject = "Nova notificação"
@@ -59,18 +80,41 @@ func (s *GmailSender) Send(ctx context.Context, n *domain.Notification) error {
 	msg.WriteString(fmt.Sprintf("To: %s\r\n", n.Target))
 	msg.WriteString(fmt.Sprintf("Subject: %s\r\n", subject))
 	msg.WriteString("MIME-Version: 1.0\r\n")
-	msg.WriteString("Content-Type: text/plain; charset=\"UTF-8\"\r\n")
-	msg.WriteString("\r\n")
-	msg.WriteString(n.Message)
 
-	addr := fmt.Sprintf("%s:%s", s.host, s.port)
-	auth := smtp.PlainAuth("", s.username, s.appPassword, s.host)
-
-	// net/smtp.SendMail já negocia STARTTLS automaticamente com o Gmail
-	// na porta 587, então não é necessário gerenciar TLS manualmente.
-	if err := smtp.SendMail(addr, auth, s.username, []string{n.Target}, []byte(msg.String())); err != nil {
-		return fmt.Errorf("gmail: falha ao enviar e-mail via SMTP: %w", err)
+	if len(n.Attachments) == 0 {
+		msg.WriteString("Content-Type: text/plain; charset=\"UTF-8\"\r\n\r\n")
+		msg.WriteString(n.Message)
+		return []byte(msg.String()), nil
 	}
 
-	return nil
+	const boundary = "notification-engine-boundary"
+	msg.WriteString(fmt.Sprintf("Content-Type: multipart/mixed; boundary=%q\r\n\r\n", boundary))
+
+	msg.WriteString(fmt.Sprintf("--%s\r\n", boundary))
+	msg.WriteString("Content-Type: text/plain; charset=\"UTF-8\"\r\n\r\n")
+	msg.WriteString(n.Message)
+	msg.WriteString("\r\n")
+
+	for _, att := range n.Attachments {
+		raw, err := base64.StdEncoding.DecodeString(att.Data)
+		if err != nil {
+			return nil, fmt.Errorf("gmail: anexo %q com base64 inválido: %w", att.Filename, err)
+		}
+
+		contentType := att.ContentType
+		if contentType == "" {
+			contentType = "application/octet-stream"
+		}
+
+		msg.WriteString(fmt.Sprintf("--%s\r\n", boundary))
+		msg.WriteString(fmt.Sprintf("Content-Type: %s; name=%q\r\n", contentType, att.Filename))
+		msg.WriteString("Content-Transfer-Encoding: base64\r\n")
+		msg.WriteString(fmt.Sprintf("Content-Disposition: attachment; filename=%q\r\n\r\n", att.Filename))
+		msg.WriteString(base64.StdEncoding.EncodeToString(raw))
+		msg.WriteString("\r\n")
+	}
+
+	msg.WriteString(fmt.Sprintf("--%s--\r\n", boundary))
+
+	return []byte(msg.String()), nil
 }
