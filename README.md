@@ -19,6 +19,7 @@ Serviço assíncrono de alto desempenho para disparo de notificações multicana
 - [Métricas (Prometheus)](#métricas-prometheus)
 - [Bot do Telegram](#bot-do-telegram)
 - [Dashboard](#dashboard)
+- [Upgrade V1 → V2](#upgrade-v1--v2)
 - [Licença](#licença)
 
 ---
@@ -277,6 +278,19 @@ Com `TELEGRAM_BOT_TOKEN` e `TELEGRAM_BOT_ENABLED=true`, o worker sobe um bot que
 ## Dashboard
 
 Abra `dashboard.html` (com a API rodando) para ver, em tempo real: total de notificações por status, lista filtrável por status/canal, último erro de cada uma, e um botão de retry manual para itens em `retrying`/`dlq`. Assim como `main.html`, é uma página estática que fala direto com a API via `fetch` (CORS liberado para uso local).
+
+---
+
+## Upgrade V1 → V2
+
+Se você estava usando a V1, consulte **[UPGRADE_V2_GUIDE.md](UPGRADE_V2_GUIDE.md)** para:
+
+- Alterações necessárias para iniciar (novas dependências, variáveis de ambiente, infraestrutura Docker)
+- Passo-a-passo de setup e teste da V2
+- Documentação completa dos novos recursos (Bulk API, Retry manual, Dashboard, Bot, Métricas)
+- Troubleshooting e checklist de migração
+
+Para detalhes técnicos das mudanças, veja **[CHANGELOG_V2.md](CHANGELOG_V2.md)**.
 
 ---
 
