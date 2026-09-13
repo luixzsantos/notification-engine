@@ -9,7 +9,7 @@ func TestValidateDiscordHost(t *testing.T) {
 		"https://ptb.discord.com/api/webhooks/123/abc",
 	}
 	for _, target := range valid {
-		if err := validateDiscordHost(target); err != nil {
+		if err := ValidateDiscordHost(target); err != nil {
 			t.Errorf("esperava %q válido, obteve erro: %v", target, err)
 		}
 	}
@@ -21,7 +21,7 @@ func TestValidateDiscordHost(t *testing.T) {
 		"não é uma url",
 	}
 	for _, target := range invalid {
-		if err := validateDiscordHost(target); err == nil {
+		if err := ValidateDiscordHost(target); err == nil {
 			t.Errorf("esperava %q inválido (fora do domínio discord), mas passou", target)
 		}
 	}

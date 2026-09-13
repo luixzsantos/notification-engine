@@ -1,6 +1,6 @@
 # 📨 Webhook & Notification Engine
 
-Serviço assíncrono de alto desempenho para disparo de notificações multicanais (**Discord**, **Telegram**, **Gmail**, **Outlook/Microsoft 365**, **WhatsApp** e **Webhooks genéricos**), construído em **Go** seguindo os princípios de **Clean Architecture**, com concorrência nativa via goroutines, fila de processamento no **Redis Streams**, persistência/auditoria em **PostgreSQL**, retry com backoff exponencial, rate limiting por canal e métricas Prometheus.
+Serviço assíncrono de alto desempenho para disparo de notificações multicanais (**Discord**, **Telegram**, **Gmail**, **Outlook/Microsoft 365**, **WhatsApp**, **Microsoft Teams** e **Webhooks genéricos**), construído em **Go** seguindo os princípios de **Clean Architecture**, com concorrência nativa via goroutines, fila de processamento no **Redis Streams**, persistência/auditoria em **PostgreSQL**, retry com backoff exponencial, rate limiting por canal e métricas Prometheus.
 
 ---
 
@@ -18,20 +18,21 @@ Serviço assíncrono de alto desempenho para disparo de notificações multicana
 - [Rate limiting](#rate-limiting)
 - [Métricas (Prometheus)](#métricas-prometheus)
 - [Bot do Telegram](#bot-do-telegram)
+- [Configurando o Microsoft Teams](#configurando-o-microsoft-teams)
 - [Dashboard](#dashboard)
 - [Segurança](#segurança)
 - [Idempotência](#idempotência)
 - [Health checks](#health-checks)
 - [Testes e CI](#testes-e-ci)
 - [Arquitetura e decisões técnicas](#arquitetura-e-decisões-técnicas)
-- [Upgrade V1 → V2 → V3 → V4](#upgrade-v1--v2--v3--v4)
+- [Upgrade V1 → V2 → V3 → V4 → V5](#upgrade-v1--v2--v3--v4)
 - [Licença](#licença)
 
 ---
 
 ## O que o projeto faz
 
-Em resumo: é um "correio automático". Você manda um pedido de notificação pra API, ela responde na hora (sem te fazer esperar a entrega de verdade), guarda o pedido numa fila, e um processo separado (o **Worker**) entrega essa notificação no Discord, Telegram, Gmail, Outlook, WhatsApp ou qualquer Webhook — em segundo plano, com múltiplas entregas acontecendo em paralelo.
+Em resumo: é um "correio automático". Você manda um pedido de notificação pra API, ela responde na hora (sem te fazer esperar a entrega de verdade), guarda o pedido numa fila, e um processo separado (o **Worker**) entrega essa notificação no Discord, Telegram, Gmail, Outlook, WhatsApp, Teams ou qualquer Webhook — em segundo plano, com múltiplas entregas acontecendo em paralelo.
 
 Essa separação entre "receber o pedido" (API) e "entregar de verdade" (Worker) é o que permite o sistema aguentar picos de volume sem travar, e continuar funcionando mesmo se um canal específico estiver fora do ar. Quando um envio falha, a notificação não é descartada: o worker agenda novas tentativas com backoff exponencial e, se todas falharem, ela vai para uma DLQ consultável via API, bot ou dashboard.
 
@@ -50,10 +51,10 @@ Cliente → POST /api/v1/notifications → API (Go) ── grava ──→ Postg
                               │           │           │      │      │
                           rate limit  dispatcher  atualiza status ──┘
                               │           │
-                ┌─────────────┼───────────┼────────────┼────────────┼────────────┐
-                ▼             ▼           ▼             ▼            ▼            ▼
-            Discord       Telegram      Gmail        Outlook     WhatsApp      Webhook
-            Webhook       Bot API       (SMTP)     (Graph API) (Cloud API)     genérico
+                ┌─────────────┼───────────┼────────────┼────────────┼────────────┼────────────┐
+                ▼             ▼           ▼             ▼            ▼            ▼            ▼
+            Discord       Telegram      Gmail        Outlook     WhatsApp       Teams       Webhook
+            Webhook       Bot API       (SMTP)     (Graph API) (Cloud API) (Power Automate)  genérico
 
   Falha? → agenda retry (backoff exponencial) ou move para DLQ
               │
@@ -97,7 +98,7 @@ notification-engine/
 │   ├── handler/                 # Controladores HTTP
 │   ├── service/                 # Regras de negócio (criar, listar, retry, bulk)
 │   ├── queue/                   # Producer/Consumer do Redis Streams
-│   ├── channel/                 # Conectores: discord, telegram, gmail, outlook, whatsapp, webhook
+│   ├── channel/                 # Conectores: discord, telegram, gmail, outlook, whatsapp, teams, webhook
 │   ├── db/                      # Conexão PostgreSQL + repositório + schema.sql
 │   ├── worker/                  # Dispatcher (rate limit + retry/DLQ) + RetryPoller
 │   ├── ratelimit/                # Token bucket por canal
@@ -169,7 +170,7 @@ Veja todos os detalhes em [`.env.example`](.env.example). Resumo:
 | `GMAIL_USERNAME` / `GMAIL_APP_PASSWORD` | Canal `email` | Conta Gmail e [senha de app](https://myaccount.google.com/apppasswords) (requer 2FA ativo) |
 | `WHATSAPP_PHONE_NUMBER_ID` / `WHATSAPP_ACCESS_TOKEN` | Canal `whatsapp` | ID do número e token de acesso da [WhatsApp Cloud API](https://developers.facebook.com/docs/whatsapp/cloud-api) (Meta) |
 | `OUTLOOK_TENANT_ID` / `OUTLOOK_CLIENT_ID` / `OUTLOOK_CLIENT_SECRET` / `OUTLOOK_SENDER_EMAIL` | Canal `outlook` | Credenciais de um app do Azure AD com permissão de aplicativo `Mail.Send` consentida por um admin do tenant |
-| `DEFAULT_DISCORD_TARGET` / `DEFAULT_TELEGRAM_TARGET` / `DEFAULT_EMAIL_TARGET` / `DEFAULT_WHATSAPP_TARGET` / `DEFAULT_OUTLOOK_TARGET` | Opcional | Usados quando `target` não é enviado na requisição |
+| `DEFAULT_DISCORD_TARGET` / `DEFAULT_TELEGRAM_TARGET` / `DEFAULT_EMAIL_TARGET` / `DEFAULT_WHATSAPP_TARGET` / `DEFAULT_OUTLOOK_TARGET` / `DEFAULT_TEAMS_TARGET` | Opcional | Usados quando `target` não é enviado na requisição |
 | `WORKER_CONCURRENCY` | Opcional | Nº de goroutines consumidoras (default: `10`) |
 | `RETRY_MAX_ATTEMPTS` | Opcional | Tentativas antes de mover para a DLQ (default: `5`) |
 | `RETRY_MAX_BACKOFF_SECONDS` | Opcional | Teto do backoff exponencial (default: `3600`) |
@@ -223,6 +224,24 @@ Veja todos os detalhes em [`.env.example`](.env.example). Resumo:
   "target": "+5511999999999",
   "template_name": "payment_approved",
   "template_params": ["João", "149,90"]
+}
+```
+
+**Microsoft Teams** (target é a URL do gatilho de um Workflow do Power Automate — veja [Configurando o Microsoft Teams](#configurando-o-microsoft-teams) abaixo):
+```json
+{"channel":"teams","target":"https://prod-00.westus.logic.azure.com/workflows/.../triggers/manual/paths/invoke","message":"Alerta de sistema"}
+```
+
+**Tabela** (opcional, em qualquer canal — Teams e e-mail mostram uma tabela de verdade; Discord/Telegram/WhatsApp recebem uma versão em texto alinhado):
+```json
+{
+  "channel": "teams",
+  "target": "https://prod-00.westus.logic.azure.com/workflows/.../triggers/manual/paths/invoke",
+  "message": "Resumo semanal de aprovações",
+  "table": {
+    "headers": ["Nome", "Status"],
+    "rows": [["João", "Aprovado"], ["Maria", "Pendente"]]
+  }
 }
 ```
 
@@ -323,6 +342,38 @@ Com `TELEGRAM_BOT_TOKEN` e `TELEGRAM_BOT_ENABLED=true`, o worker sobe um bot que
 
 ---
 
+## Configurando o Microsoft Teams
+
+A Microsoft **descontinuou os Incoming Webhooks clássicos** do Teams (o modelo simples tipo Discord). O caminho atual é criar um **Workflow do Power Automate**:
+
+1. No Teams, vá no canal desejado → **⋯** → **Workflows** → procure o modelo **"Post to a channel when a webhook request is received"**.
+2. Ao criar, o Power Automate mostra a URL do gatilho — é essa URL que vai em `target` (ela sempre termina em `.logic.azure.com`, é isso que a engine valida para bloquear qualquer outro destino).
+3. O Workflow infere o schema esperado a partir de um **payload de exemplo**. Use exatamente este JSON como exemplo (é o formato que a engine envia):
+   ```json
+   {
+     "type": "message",
+     "attachments": [
+       {
+         "contentType": "application/vnd.microsoft.card.adaptive",
+         "content": {
+           "type": "AdaptiveCard",
+           "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+           "version": "1.5",
+           "body": [
+             {"type": "TextBlock", "text": "Exemplo", "wrap": true}
+           ]
+         }
+       }
+     ]
+   }
+   ```
+4. Na ação seguinte do Workflow, use **"Post card in a channel"** apontando para o card recebido no corpo da requisição.
+5. Copie a URL final do gatilho (com a query string completa, incluindo `?api-version=...`) para `target` ou `DEFAULT_TEAMS_TARGET`.
+
+Sem essa URL configurada, o envio falha com um erro real do Azure Logic Apps (ex: `MissingApiVersionParameter`) — confirmando que a integração está correta, só faltando a URL de um Workflow de verdade.
+
+---
+
 ## Dashboard
 
 Abra `main.html` (com a API rodando) e clique em **dashboard** na barra lateral para ver, em tempo real: total de notificações por status, lista filtrável por status/canal, último erro de cada uma, e um botão de retry manual para itens em `retrying`/`dlq`. A mesma página também traz links diretos para Prometheus e para os endpoints de métricas. É uma página estática que fala direto com a API via `fetch` (CORS liberado para uso local).
@@ -380,7 +431,7 @@ Para números reais de desempenho (throughput por número de workers, efeito do 
 
 ---
 
-## Upgrade V1 → V2 → V3 → V4
+## Upgrade V1 → V2 → V3 → V4 → V5
 
 Se você estava usando a V1, consulte **[UPGRADE_V2_GUIDE.md](UPGRADE_V2_GUIDE.md)** para:
 
@@ -389,7 +440,7 @@ Se você estava usando a V1, consulte **[UPGRADE_V2_GUIDE.md](UPGRADE_V2_GUIDE.m
 - Documentação completa dos novos recursos (Bulk API, Retry manual, Dashboard, Bot, Métricas)
 - Troubleshooting e checklist de migração
 
-Para detalhes técnicos das mudanças da V2, veja **[CHANGELOG_V2.md](CHANGELOG_V2.md)**; para a rodada de testes/segurança/confiabilidade (V3), veja **[CHANGELOG_V3.md](CHANGELOG_V3.md)**; para os novos canais Outlook e WhatsApp (V4), veja **[CHANGELOG_V4.md](CHANGELOG_V4.md)**.
+Para detalhes técnicos das mudanças da V2, veja **[CHANGELOG_V2.md](CHANGELOG_V2.md)**; para a rodada de testes/segurança/confiabilidade (V3), veja **[CHANGELOG_V3.md](CHANGELOG_V3.md)**; para os canais Outlook e WhatsApp (V4), veja **[CHANGELOG_V4.md](CHANGELOG_V4.md)**; para Microsoft Teams e tabelas estruturadas (V5), veja **[CHANGELOG_V5.md](CHANGELOG_V5.md)**.
 
 ---
 

@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -33,8 +34,27 @@ func (s *TelegramSender) Channel() domain.ChannelType {
 }
 
 type telegramPayload struct {
-	ChatID string `json:"chat_id"`
-	Text   string `json:"text"`
+	ChatID    string `json:"chat_id"`
+	Text      string `json:"text"`
+	ParseMode string `json:"parse_mode,omitempty"`
+}
+
+// buildTelegramText monta o texto da mensagem, anexando a tabela (se
+// houver) dentro de um bloco <pre> — o único jeito confiável de preservar
+// alinhamento monoespaçado na API do Telegram. Isso exige parse_mode=HTML,
+// e por isso o texto livre também precisa ser escapado (senão um "<" ou "&"
+// na mensagem do usuário quebraria o parsing HTML do lado do Telegram).
+func buildTelegramText(n *domain.Notification) (text string, parseMode string) {
+	rendered := n.Table.FormatMonospace()
+	if rendered == "" {
+		return n.Message, ""
+	}
+
+	block := "<pre>" + html.EscapeString(rendered) + "</pre>"
+	if n.Message == "" {
+		return block, "HTML"
+	}
+	return html.EscapeString(n.Message) + "\n\n" + block, "HTML"
 }
 
 // Send envia a notificação para o Telegram. n.Target deve ser o chat_id do
@@ -62,7 +82,8 @@ func (s *TelegramSender) Send(ctx context.Context, n *domain.Notification) error
 }
 
 func (s *TelegramSender) sendMessage(ctx context.Context, n *domain.Notification) error {
-	body, err := json.Marshal(telegramPayload{ChatID: n.Target, Text: n.Message})
+	text, parseMode := buildTelegramText(n)
+	body, err := json.Marshal(telegramPayload{ChatID: n.Target, Text: text, ParseMode: parseMode})
 	if err != nil {
 		return fmt.Errorf("telegram: falha ao serializar payload: %w", err)
 	}

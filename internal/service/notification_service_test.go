@@ -182,6 +182,64 @@ func TestCreateNotification_BlocksSSRFTarget(t *testing.T) {
 	}
 }
 
+func TestCreateNotification_BlocksDiscordWrongHost(t *testing.T) {
+	repo := newFakeRepository()
+	producer := &fakeProducer{}
+	svc := newService(repo, producer)
+
+	_, err := svc.CreateNotification(context.Background(), CreateNotificationInput{
+		Channel: domain.ChannelDiscord,
+		Target:  "https://evil.com/api/webhooks/123/abc", // domínio público, mas não é discord.com
+		Message: "olá",
+	})
+	if err == nil {
+		t.Fatal("esperava rejeição já na criação (host fora de discord.com), mas foi aceita")
+	}
+	if repo.createCalls != 0 {
+		t.Error("não deveria ter persistido notificação com host de Discord inválido")
+	}
+}
+
+func TestCreateNotification_BlocksTeamsWrongHost(t *testing.T) {
+	repo := newFakeRepository()
+	producer := &fakeProducer{}
+	svc := newService(repo, producer)
+
+	_, err := svc.CreateNotification(context.Background(), CreateNotificationInput{
+		Channel: domain.ChannelTeams,
+		Target:  "https://evil.com/workflows/abc", // não é um workflow do Power Automate
+		Message: "olá",
+	})
+	if err == nil {
+		t.Fatal("esperava rejeição já na criação (host fora de *.logic.azure.com), mas foi aceita")
+	}
+	if repo.createCalls != 0 {
+		t.Error("não deveria ter persistido notificação com host de Teams inválido")
+	}
+}
+
+func TestCreateNotification_AcceptsValidTeamsHost(t *testing.T) {
+	repo := newFakeRepository()
+	producer := &fakeProducer{}
+	svc := newService(repo, producer)
+
+	n, err := svc.CreateNotification(context.Background(), CreateNotificationInput{
+		Channel: domain.ChannelTeams,
+		Target:  "https://prod-00.westus.logic.azure.com/workflows/abc/triggers/manual/paths/invoke",
+		Message: "olá",
+		Table: &domain.Table{
+			Headers: []string{"Nome", "Status"},
+			Rows:    [][]string{{"João", "Aprovado"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("esperava sucesso, obteve erro: %v", err)
+	}
+	if n.Table == nil {
+		t.Fatal("esperava a tabela preservada na notificação criada")
+	}
+}
+
 func TestCreateNotification_IdempotentReplayReturnsExisting(t *testing.T) {
 	repo := newFakeRepository()
 	producer := &fakeProducer{}

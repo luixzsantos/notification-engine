@@ -156,3 +156,86 @@ func TestValidate_OutlookRequiresTarget(t *testing.T) {
 		t.Fatalf("esperava ErrEmptyTarget, obteve: %v", err)
 	}
 }
+
+func TestTable_FormatMonospace(t *testing.T) {
+	table := &Table{
+		Headers: []string{"Nome", "Status"},
+		Rows: [][]string{
+			{"João", "Aprovado"},
+			{"Maria", "Pendente"},
+		},
+	}
+
+	out := table.FormatMonospace()
+
+	if !strings.Contains(out, "Nome") || !strings.Contains(out, "Status") {
+		t.Fatalf("esperava cabeçalho na saída, obteve:\n%s", out)
+	}
+	if !strings.Contains(out, "João") || !strings.Contains(out, "Maria") {
+		t.Fatalf("esperava linhas na saída, obteve:\n%s", out)
+	}
+	lines := strings.Split(out, "\n")
+	if len(lines) != 4 { // header + separator + 2 rows
+		t.Fatalf("esperava 4 linhas (header, separador, 2 linhas), obteve %d:\n%s", len(lines), out)
+	}
+}
+
+func TestTable_FormatMonospace_NilOrEmpty(t *testing.T) {
+	var nilTable *Table
+	if got := nilTable.FormatMonospace(); got != "" {
+		t.Errorf("esperava string vazia para tabela nil, obteve %q", got)
+	}
+
+	empty := &Table{}
+	if got := empty.FormatMonospace(); got != "" {
+		t.Errorf("esperava string vazia para tabela sem linhas, obteve %q", got)
+	}
+}
+
+func TestTable_FormatMonospace_UnevenRows(t *testing.T) {
+	table := &Table{
+		Rows: [][]string{
+			{"a", "b", "c"},
+			{"x"},
+		},
+	}
+
+	// não deveria entrar em pânico com linhas de tamanhos diferentes
+	out := table.FormatMonospace()
+	if !strings.Contains(out, "a") || !strings.Contains(out, "x") {
+		t.Fatalf("saída inesperada: %q", out)
+	}
+}
+
+func TestTable_FormatHTML(t *testing.T) {
+	table := &Table{
+		Headers: []string{"Nome", "<script>"},
+		Rows: [][]string{
+			{"João", "Aprovado"},
+		},
+	}
+
+	out := table.FormatHTML()
+
+	if !strings.Contains(out, "<table") {
+		t.Fatalf("esperava tag <table>, obteve: %s", out)
+	}
+	if strings.Contains(out, "<script>") {
+		t.Fatal("esperava conteúdo escapado (XSS), mas <script> apareceu cru na saída")
+	}
+	if !strings.Contains(out, "&lt;script&gt;") {
+		t.Fatalf("esperava conteúdo escapado como &lt;script&gt;, obteve: %s", out)
+	}
+}
+
+func TestValidate_TableSatisfiesEmptyMessage(t *testing.T) {
+	n := &Notification{
+		Channel: ChannelTeams,
+		Target:  "https://prod-00.westus.logic.azure.com/workflows/abc/triggers/manual/paths/invoke",
+		Table:   &Table{Rows: [][]string{{"a", "b"}}},
+	}
+
+	if err := n.Validate(); err != nil {
+		t.Fatalf("tabela sem message deveria ser aceita, obteve: %v", err)
+	}
+}

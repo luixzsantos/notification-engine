@@ -69,7 +69,7 @@ func (s *WhatsAppSender) Send(ctx context.Context, n *domain.Notification) error
 			"messaging_product": "whatsapp",
 			"to":                to,
 			"type":              "text",
-			"text":              map[string]any{"body": n.Message},
+			"text":              map[string]any{"body": appendMonospaceTable(n.Message, n.Table)},
 		}
 	}
 

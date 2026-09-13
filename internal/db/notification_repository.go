@@ -30,7 +30,7 @@ func NewNotificationRepository(conn *sql.DB) *NotificationRepository {
 
 const selectColumns = `
 	id, idempotency_key, channel, target, subject, message, payload, headers, attachments,
-	template_name, template_locale, template_params,
+	template_name, template_locale, template_params, table_data,
 	status, attempts, max_attempts, last_error, next_retry_at,
 	created_at, updated_at`
 
@@ -55,15 +55,26 @@ func (r *NotificationRepository) Create(ctx context.Context, n *domain.Notificat
 		return fmt.Errorf("db: falha ao serializar parâmetros de template: %w", err)
 	}
 
+	// table_data é nullable (diferente de payload/headers/attachments, que
+	// sempre têm um valor "vazio" natural) — um []byte nil aqui vira SQL
+	// NULL, preservando a distinção entre "sem tabela" e "tabela vazia".
+	var tableData []byte
+	if n.Table != nil {
+		tableData, err = json.Marshal(n.Table)
+		if err != nil {
+			return fmt.Errorf("db: falha ao serializar tabela: %w", err)
+		}
+	}
+
 	_, err = r.conn.ExecContext(ctx, `
 		INSERT INTO notifications
 			(id, idempotency_key, channel, target, subject, message, payload, headers, attachments,
-			 template_name, template_locale, template_params,
+			 template_name, template_locale, template_params, table_data,
 			 status, attempts, max_attempts, last_error, next_retry_at,
 			 created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)`,
 		n.ID, n.IdempotencyKey, n.Channel, n.Target, n.Subject, n.Message, payload, headers, attachments,
-		n.TemplateName, n.TemplateLocale, templateParams,
+		n.TemplateName, n.TemplateLocale, templateParams, tableData,
 		n.Status, n.Attempts, n.MaxAttempts, n.LastError, n.NextRetryAt,
 		n.CreatedAt, n.UpdatedAt,
 	)
@@ -247,12 +258,12 @@ type row interface {
 
 func scanNotification(r row) (*domain.Notification, error) {
 	var n domain.Notification
-	var payload, headers, attachments, templateParams []byte
+	var payload, headers, attachments, templateParams, tableData []byte
 	var nextRetryAt sql.NullTime
 
 	err := r.Scan(
 		&n.ID, &n.IdempotencyKey, &n.Channel, &n.Target, &n.Subject, &n.Message, &payload, &headers, &attachments,
-		&n.TemplateName, &n.TemplateLocale, &templateParams,
+		&n.TemplateName, &n.TemplateLocale, &templateParams, &tableData,
 		&n.Status, &n.Attempts, &n.MaxAttempts, &n.LastError, &nextRetryAt,
 		&n.CreatedAt, &n.UpdatedAt,
 	)
@@ -271,6 +282,13 @@ func scanNotification(r row) (*domain.Notification, error) {
 	}
 	if err := json.Unmarshal(templateParams, &n.TemplateParams); err != nil {
 		return nil, fmt.Errorf("parâmetros de template inválidos: %w", err)
+	}
+	if len(tableData) > 0 {
+		var t domain.Table
+		if err := json.Unmarshal(tableData, &t); err != nil {
+			return nil, fmt.Errorf("tabela inválida: %w", err)
+		}
+		n.Table = &t
 	}
 	if nextRetryAt.Valid {
 		n.NextRetryAt = &nextRetryAt.Time

@@ -44,6 +44,11 @@ func (s *WebhookSender) Send(ctx context.Context, n *domain.Notification) error 
 			body["attachments"] = n.Attachments
 		}
 	}
+	if n.Table != nil {
+		if _, exists := body["table"]; !exists {
+			body["table"] = n.Table
+		}
+	}
 
 	bodyBytes, err := json.Marshal(body)
 	if err != nil {

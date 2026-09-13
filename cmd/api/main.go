@@ -69,6 +69,9 @@ func main() {
 	if cfg.DefaultOutlookTarget != "" {
 		defaultTargets[domain.ChannelOutlook] = cfg.DefaultOutlookTarget
 	}
+	if cfg.DefaultTeamsTarget != "" {
+		defaultTargets[domain.ChannelTeams] = cfg.DefaultTeamsTarget
+	}
 
 	notificationService := service.NewNotificationService(
 		producer, repo, defaultTargets,

@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS notifications (
     template_name   TEXT NOT NULL DEFAULT '',
     template_locale TEXT NOT NULL DEFAULT '',
     template_params JSONB NOT NULL DEFAULT '[]',
+    table_data      JSONB,
     status          TEXT NOT NULL,
     attempts        INTEGER NOT NULL DEFAULT 0,
     max_attempts    INTEGER NOT NULL DEFAULT 5,
@@ -30,6 +31,7 @@ ALTER TABLE notifications ADD COLUMN IF NOT EXISTS idempotency_key TEXT NOT NULL
 ALTER TABLE notifications ADD COLUMN IF NOT EXISTS template_name TEXT NOT NULL DEFAULT '';
 ALTER TABLE notifications ADD COLUMN IF NOT EXISTS template_locale TEXT NOT NULL DEFAULT '';
 ALTER TABLE notifications ADD COLUMN IF NOT EXISTS template_params JSONB NOT NULL DEFAULT '[]';
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS table_data JSONB;
 
 CREATE INDEX IF NOT EXISTS idx_notifications_status ON notifications (status);
 CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications (created_at DESC);

@@ -28,7 +28,7 @@ type GmailConfig struct {
 }
 
 // NewRegistry monta o registry com todos os conectores de canal disponíveis.
-// Discord e Webhook (os dois que fazem requisição HTTP a uma URL fornecida
+// Discord, Webhook e Teams (os que fazem requisição HTTP a uma URL fornecida
 // pelo cliente da API) usam um http.Client "hardened" contra SSRF — recusa
 // conectar em IPs privados/loopback/link-local, a menos que
 // allowPrivateNetworks esteja ligado (uso local/dev apenas). Os demais
@@ -50,6 +50,7 @@ func NewRegistry(
 
 	registry.Register(NewWebhookSender(safeClient))
 	registry.Register(NewDiscordSender(safeClient))
+	registry.Register(NewTeamsSender(safeClient))
 	registry.Register(NewTelegramSender(plainClient, telegramBotToken))
 	registry.Register(NewGmailSender(
 		gmailCfg.Host,

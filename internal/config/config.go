@@ -56,6 +56,7 @@ type Config struct {
 	DefaultEmailTarget    string
 	DefaultWhatsAppTarget string
 	DefaultOutlookTarget  string
+	DefaultTeamsTarget    string
 
 	HTTPClientTimeoutSeconds int
 	WorkerConcurrency        int
@@ -72,6 +73,7 @@ type Config struct {
 	RateLimitEmailRPS    float64
 	RateLimitWhatsAppRPS float64
 	RateLimitOutlookRPS  float64
+	RateLimitTeamsRPS    float64
 
 	MetricsEnabled bool
 	MetricsPort    string
@@ -145,6 +147,7 @@ func Load() *Config {
 		DefaultEmailTarget:    getEnv("DEFAULT_EMAIL_TARGET", ""),
 		DefaultWhatsAppTarget: getEnv("DEFAULT_WHATSAPP_TARGET", ""),
 		DefaultOutlookTarget:  getEnv("DEFAULT_OUTLOOK_TARGET", ""),
+		DefaultTeamsTarget:    getEnv("DEFAULT_TEAMS_TARGET", ""),
 
 		HTTPClientTimeoutSeconds: getEnvAsInt("HTTP_CLIENT_TIMEOUT_SECONDS", 10),
 		WorkerConcurrency:        getEnvAsInt("WORKER_CONCURRENCY", 10),
@@ -161,6 +164,7 @@ func Load() *Config {
 		RateLimitEmailRPS:    getEnvAsFloat("RATE_LIMIT_EMAIL_RPS", 5),
 		RateLimitWhatsAppRPS: getEnvAsFloat("RATE_LIMIT_WHATSAPP_RPS", 10),
 		RateLimitOutlookRPS:  getEnvAsFloat("RATE_LIMIT_OUTLOOK_RPS", 10),
+		RateLimitTeamsRPS:    getEnvAsFloat("RATE_LIMIT_TEAMS_RPS", 10),
 
 		MetricsEnabled: getEnvAsBool("METRICS_ENABLED", true),
 		MetricsPort:    getEnv("METRICS_PORT", "9091"),

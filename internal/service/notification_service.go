@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"notification-engine/internal/channel"
 	"notification-engine/internal/domain"
 	"notification-engine/internal/metrics"
 	"notification-engine/internal/retry"
@@ -30,6 +31,10 @@ type CreateNotificationInput struct {
 	TemplateName   string   `json:"template_name,omitempty"`
 	TemplateLocale string   `json:"template_locale,omitempty"`
 	TemplateParams []string `json:"template_params,omitempty"`
+
+	// Table, quando informado, anexa uma tabela à notificação — veja
+	// domain.Notification.Table.
+	Table *domain.Table `json:"table,omitempty"`
 
 	// IdempotencyKey normalmente vem do header HTTP Idempotency-Key (POST
 	// /notifications); no /bulk, como não há um header por item, também
@@ -99,9 +104,27 @@ func (s *NotificationService) CreateNotification(ctx context.Context, input Crea
 		return nil, err
 	}
 
-	if n.Channel == domain.ChannelWebhook || n.Channel == domain.ChannelDiscord {
+	if n.Channel == domain.ChannelWebhook || n.Channel == domain.ChannelDiscord || n.Channel == domain.ChannelTeams {
 		if err := security.ValidateTargetURL(n.Target, s.allowPrivateNetworks); err != nil {
 			return nil, err
+		}
+	}
+	// Além da checagem genérica de SSRF acima, Discord e Teams também
+	// restringem o host ao domínio real do provedor (discord.com,
+	// *.logic.azure.com). Validar isso já na criação rejeita um destino
+	// errado com 400 na hora, em vez de só descobrir depois de 5 tentativas
+	// de retry inúteis no worker (o Sender revalida de qualquer forma,
+	// como defesa em profundidade).
+	if !s.allowPrivateNetworks {
+		switch n.Channel {
+		case domain.ChannelDiscord:
+			if err := channel.ValidateDiscordHost(n.Target); err != nil {
+				return nil, err
+			}
+		case domain.ChannelTeams:
+			if err := channel.ValidateTeamsHost(n.Target); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -239,6 +262,7 @@ func (s *NotificationService) build(input CreateNotificationInput) *domain.Notif
 		TemplateName:   input.TemplateName,
 		TemplateLocale: input.TemplateLocale,
 		TemplateParams: input.TemplateParams,
+		Table:          input.Table,
 		Status:         domain.StatusPending,
 		MaxAttempts:    s.maxAttempts,
 		CreatedAt:      now,

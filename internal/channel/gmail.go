@@ -75,6 +75,8 @@ func (s *GmailSender) buildMessage(n *domain.Notification) ([]byte, error) {
 		fromHeader = fmt.Sprintf("%s <%s>", s.fromName, s.username)
 	}
 
+	bodyContentType, bodyContent := emailBody(n)
+
 	var msg strings.Builder
 	msg.WriteString(fmt.Sprintf("From: %s\r\n", fromHeader))
 	msg.WriteString(fmt.Sprintf("To: %s\r\n", n.Target))
@@ -82,8 +84,8 @@ func (s *GmailSender) buildMessage(n *domain.Notification) ([]byte, error) {
 	msg.WriteString("MIME-Version: 1.0\r\n")
 
 	if len(n.Attachments) == 0 {
-		msg.WriteString("Content-Type: text/plain; charset=\"UTF-8\"\r\n\r\n")
-		msg.WriteString(n.Message)
+		msg.WriteString(fmt.Sprintf("Content-Type: %s; charset=\"UTF-8\"\r\n\r\n", bodyContentType))
+		msg.WriteString(bodyContent)
 		return []byte(msg.String()), nil
 	}
 
@@ -91,8 +93,8 @@ func (s *GmailSender) buildMessage(n *domain.Notification) ([]byte, error) {
 	msg.WriteString(fmt.Sprintf("Content-Type: multipart/mixed; boundary=%q\r\n\r\n", boundary))
 
 	msg.WriteString(fmt.Sprintf("--%s\r\n", boundary))
-	msg.WriteString("Content-Type: text/plain; charset=\"UTF-8\"\r\n\r\n")
-	msg.WriteString(n.Message)
+	msg.WriteString(fmt.Sprintf("Content-Type: %s; charset=\"UTF-8\"\r\n\r\n", bodyContentType))
+	msg.WriteString(bodyContent)
 	msg.WriteString("\r\n")
 
 	for _, att := range n.Attachments {

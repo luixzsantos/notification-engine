@@ -200,8 +200,9 @@ ou operasse múltiplas instâncias de banco — não é o caso aqui.
 
 ## Proteção contra SSRF (Server-Side Request Forgery)
 
-Os canais **Discord** e **Webhook genérico** fazem uma requisição HTTP para
-uma URL fornecida pelo cliente da API (`target`). Sem proteção, isso permite
+Os canais **Discord**, **Teams** e **Webhook genérico** fazem uma
+requisição HTTP para uma URL fornecida pelo cliente da API (`target`). Sem
+proteção, isso permite
 que alguém use a engine como proxy para acessar redes internas — por
 exemplo, apontando `target` para `http://169.254.169.254/latest/meta-data`
 (o endereço de metadados de nuvem da AWS/GCP/Azure, que costuma expor
@@ -221,13 +222,19 @@ Duas camadas de defesa (`internal/security`):
    É essa camada que efetivamente protege o sistema — a primeira é só uma
    otimização de UX.
 
-O canal **Discord** ainda tem uma terceira camada específica: o host do
-`target` precisa terminar em `discord.com` ou `discordapp.com`. Isso não é
-sobre SSRF (que já está coberto pelas duas camadas acima) — é para impedir
-que o canal "discord" seja usado como um proxy HTTP genérico para qualquer
-servidor público.
+Os canais **Discord** e **Teams** ainda têm uma terceira camada específica:
+o host do `target` precisa terminar em `discord.com`/`discordapp.com`
+(Discord) ou `.logic.azure.com` (Teams — o domínio real dos gatilhos de
+Workflow do Power Automate). Isso não é sobre SSRF (que já está coberto
+pelas duas camadas acima) — é para impedir que o canal seja usado como um
+proxy HTTP genérico para qualquer servidor público. Essa checagem roda
+**duas vezes**: uma vez na criação (`channel.ValidateDiscordHost` /
+`channel.ValidateTeamsHost`, chamadas pelo `service`, para rejeitar um host
+errado com 400 na hora) e de novo dentro do próprio `Sender` no momento do
+envio (defesa em profundidade — chega a esse ponto mesmo que alguém chame o
+`Sender` diretamente, pulando o service).
 
-`ALLOW_PRIVATE_NETWORK_TARGETS=true` desliga as três camadas — existe só
+`ALLOW_PRIVATE_NETWORK_TARGETS=true` desliga essas camadas — existe só
 para testar contra serviços internos em desenvolvimento; nunca deveria ser
 ligado em produção.
 
@@ -258,6 +265,31 @@ conversa de 24h — texto livre só é aceito pela API dentro dessa janela
 como uma alternativa a `Message`: notificações de negócio (a maioria dos
 casos de alerta/aviso) devem usar template; texto livre é a exceção, não a
 regra, para esse canal.
+
+---
+
+## Tabelas estruturadas (`domain.Table`) — um conteúdo, várias renderizações
+
+`Notification.Table` (`{headers, rows}`) existe porque nem todo canal
+"entende" tabela do mesmo jeito, e a engine não deveria forçar quem chama a
+API a conhecer esse detalhe por canal. Cada `Sender` decide como
+renderizar:
+
+- **Teams**: elemento `Table` nativo do Adaptive Card 1.5 (grade de
+  verdade, com cabeçalho em negrito).
+- **Gmail/Outlook**: `Table.FormatHTML()` — uma tag `<table>` HTML de
+  verdade (o que também muda o `Content-Type` do e-mail de `text/plain`
+  para `text/html`/`HTML` só quando há tabela, preservando o comportamento
+  de texto simples de sempre no caso comum).
+- **Discord/Telegram/WhatsApp (texto livre)**: `Table.FormatMonospace()` —
+  colunas alinhadas por espaço, dentro de um bloco de código (\`\`\` no
+  Discord/WhatsApp, `<pre>` no Telegram, que exige `parse_mode=HTML` e por
+  isso passa a escapar o texto livre da mensagem nesse caminho).
+- **Webhook genérico**: a tabela vai como mais um campo (`table`) no JSON
+  já enviado — quem recebe decide o que fazer com ela.
+
+Nenhum desses formatos é o "dono" do dado — `domain.Table` é neutro, os
+`Sender`s é que sabem traduzir pro formato de cada canal.
 
 ---
 

@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"notification-engine/internal/domain"
+	"notification-engine/internal/security"
 )
 
 // DiscordSender dispara mensagens para um Discord Webhook URL.
@@ -38,7 +39,7 @@ type discordPayload struct {
 // n.Attachments está presente, envia como multipart/form-data (files[n] +
 // payload_json), do contrário usa o corpo JSON simples.
 func (s *DiscordSender) Send(ctx context.Context, n *domain.Notification) error {
-	if err := validateDiscordHost(n.Target); err != nil {
+	if err := ValidateDiscordHost(n.Target); err != nil {
 		return err
 	}
 
@@ -68,28 +69,31 @@ func (s *DiscordSender) Send(ctx context.Context, n *domain.Notification) error 
 	return nil
 }
 
-// validateDiscordHost restringe o destino a hosts realmente pertencentes ao
+// ValidateDiscordHost restringe o destino a hosts realmente pertencentes ao
 // Discord (discord.com/discordapp.com). Além de mitigar SSRF (que já é
 // tratado de forma genérica pelo http.Client hardened do registry), isso
 // impede que o canal "discord" seja usado como um proxy genérico para
-// disparar requisições HTTP a qualquer outro servidor público.
-func validateDiscordHost(target string) error {
+// disparar requisições HTTP a qualquer outro servidor público. Exportada
+// (chamada também pelo service, na criação) para rejeitar um host errado
+// com 400 na hora, em vez de só descobrir isso depois de 5 tentativas de
+// retry inúteis no worker.
+func ValidateDiscordHost(target string) error {
 	u, err := url.Parse(target)
 	if err != nil {
-		return fmt.Errorf("discord: URL de destino inválida: %w", err)
+		return fmt.Errorf("%w: URL malformada: %v", security.ErrBlockedTarget, err)
 	}
 
 	host := strings.ToLower(u.Hostname())
 	if host != "discord.com" && !strings.HasSuffix(host, ".discord.com") &&
 		host != "discordapp.com" && !strings.HasSuffix(host, ".discordapp.com") {
-		return fmt.Errorf("discord: destino deve ser um webhook em discord.com ou discordapp.com, recebido: %s", host)
+		return fmt.Errorf("%w: destino deve ser um webhook em discord.com ou discordapp.com, recebido: %s", security.ErrBlockedTarget, host)
 	}
 
 	return nil
 }
 
 func (s *DiscordSender) buildJSONRequest(ctx context.Context, n *domain.Notification) (*http.Request, error) {
-	body, err := json.Marshal(discordPayload{Content: n.Message})
+	body, err := json.Marshal(discordPayload{Content: appendMonospaceTable(n.Message, n.Table)})
 	if err != nil {
 		return nil, fmt.Errorf("discord: falha ao serializar payload: %w", err)
 	}
@@ -107,7 +111,7 @@ func (s *DiscordSender) buildMultipartRequest(ctx context.Context, n *domain.Not
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
 
-	payloadJSON, err := json.Marshal(discordPayload{Content: n.Message})
+	payloadJSON, err := json.Marshal(discordPayload{Content: appendMonospaceTable(n.Message, n.Table)})
 	if err != nil {
 		return nil, fmt.Errorf("discord: falha ao serializar payload: %w", err)
 	}

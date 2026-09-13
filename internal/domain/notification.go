@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"html"
 	"strings"
 	"time"
 )
@@ -18,6 +19,7 @@ const (
 	ChannelEmail    ChannelType = "email"    // Gmail (SMTP)
 	ChannelWhatsApp ChannelType = "whatsapp" // WhatsApp Cloud API (Meta)
 	ChannelOutlook  ChannelType = "outlook"  // Microsoft 365 / Outlook (Graph API)
+	ChannelTeams    ChannelType = "teams"    // Microsoft Teams (Workflow webhook + Adaptive Card)
 )
 
 // Status representa o estado do ciclo de vida de uma notificação.
@@ -86,6 +88,13 @@ type Notification struct {
 	TemplateLocale string   `json:"template_locale,omitempty"` // ex: "pt_BR"; default "pt_BR" se omitido
 	TemplateParams []string `json:"template_params,omitempty"`
 
+	// Table, quando informado, anexa uma tabela simples à notificação.
+	// Canais com renderização nativa de tabela (Teams via Adaptive Card,
+	// e-mail via HTML) mostram uma tabela de verdade; os demais (Discord,
+	// Telegram, WhatsApp em texto livre) recebem uma versão em texto
+	// monoespaçado. Veja Table.FormatMonospace/FormatHTML.
+	Table *Table `json:"table,omitempty"`
+
 	Status      Status     `json:"status"`
 	Attempts    int        `json:"attempts"`
 	MaxAttempts int        `json:"max_attempts"`
@@ -98,7 +107,7 @@ type Notification struct {
 // IsValidChannel confere se o canal informado é suportado pela engine.
 func IsValidChannel(c ChannelType) bool {
 	switch c {
-	case ChannelDiscord, ChannelTelegram, ChannelWebhook, ChannelEmail, ChannelWhatsApp, ChannelOutlook:
+	case ChannelDiscord, ChannelTelegram, ChannelWebhook, ChannelEmail, ChannelWhatsApp, ChannelOutlook, ChannelTeams:
 		return true
 	default:
 		return false
@@ -113,7 +122,7 @@ func (n *Notification) Validate() error {
 	if n.Target == "" {
 		return ErrEmptyTarget
 	}
-	if n.Message == "" && n.Payload == nil && len(n.Attachments) == 0 && n.TemplateName == "" {
+	if n.Message == "" && n.Payload == nil && len(n.Attachments) == 0 && n.TemplateName == "" && n.Table == nil {
 		return ErrEmptyMessage
 	}
 	if len(n.Attachments) > MaxAttachments {
@@ -142,6 +151,117 @@ func stripDataURIPrefix(data string) string {
 // comprimento da string base64 (aprox. 3/4 do tamanho codificado).
 func decodedSize(base64Data string) int {
 	return len(base64Data) / 4 * 3
+}
+
+// Table representa uma tabela simples (cabeçalho opcional + linhas) que
+// pode ser anexada a uma notificação. Não é um formato específico de
+// nenhum canal — cada Sender decide como renderizá-la (tabela nativa,
+// HTML, ou texto monoespaçado) através de FormatMonospace/FormatHTML.
+type Table struct {
+	Headers []string   `json:"headers,omitempty"`
+	Rows    [][]string `json:"rows"`
+}
+
+// columnCount retorna o maior número de colunas entre o cabeçalho e as
+// linhas, para lidar com linhas de tamanhos desiguais sem entrar em pânico.
+func (t *Table) columnCount() int {
+	columns := len(t.Headers)
+	for _, row := range t.Rows {
+		if len(row) > columns {
+			columns = len(row)
+		}
+	}
+	return columns
+}
+
+func cellAt(cells []string, i int) string {
+	if i < len(cells) {
+		return cells[i]
+	}
+	return ""
+}
+
+// FormatMonospace renderiza a tabela como texto de largura fixa (colunas
+// alinhadas por espaços) — usado pelos canais sem suporte nativo a tabelas
+// (Discord, Telegram, WhatsApp em texto livre), tipicamente dentro de um
+// bloco de código para preservar o alinhamento.
+func (t *Table) FormatMonospace() string {
+	if t == nil || len(t.Rows) == 0 {
+		return ""
+	}
+
+	columns := t.columnCount()
+	widths := make([]int, columns)
+
+	measure := func(cells []string) {
+		for i := 0; i < columns; i++ {
+			if w := len(cellAt(cells, i)); w > widths[i] {
+				widths[i] = w
+			}
+		}
+	}
+	measure(t.Headers)
+	for _, row := range t.Rows {
+		measure(row)
+	}
+
+	var b strings.Builder
+	writeRow := func(cells []string) {
+		for i := 0; i < columns; i++ {
+			cell := cellAt(cells, i)
+			b.WriteString(cell)
+			if i < columns-1 {
+				b.WriteString(strings.Repeat(" ", widths[i]-len(cell)+2))
+			}
+		}
+		b.WriteString("\n")
+	}
+
+	if len(t.Headers) > 0 {
+		writeRow(t.Headers)
+		total := columns - 1 // espaço entre colunas já contado abaixo
+		for _, w := range widths {
+			total += w
+		}
+		b.WriteString(strings.Repeat("-", total))
+		b.WriteString("\n")
+	}
+	for _, row := range t.Rows {
+		writeRow(row)
+	}
+
+	return strings.TrimRight(b.String(), "\n")
+}
+
+// FormatHTML renderiza a tabela como uma tag <table> HTML simples (com
+// bordas), usada pelos canais de e-mail (Gmail/Outlook) quando o corpo da
+// mensagem é enviado como HTML.
+func (t *Table) FormatHTML() string {
+	if t == nil || len(t.Rows) == 0 {
+		return ""
+	}
+
+	var b strings.Builder
+	b.WriteString(`<table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;">`)
+
+	if len(t.Headers) > 0 {
+		b.WriteString("<tr>")
+		for _, h := range t.Headers {
+			b.WriteString("<th>" + html.EscapeString(h) + "</th>")
+		}
+		b.WriteString("</tr>")
+	}
+
+	for _, row := range t.Rows {
+		b.WriteString("<tr>")
+		for _, cell := range row {
+			b.WriteString("<td>" + html.EscapeString(cell) + "</td>")
+		}
+		b.WriteString("</tr>")
+	}
+
+	b.WriteString("</table>")
+	return b.String()
 }
 
 // ListFilter restringe uma consulta de notificações por status e/ou canal.

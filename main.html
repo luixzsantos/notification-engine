@@ -510,6 +510,36 @@
       line-height: 1.45;
     }
 
+    #table-input {
+      min-height: 70px;
+      font-family: ui-monospace, monospace;
+      font-size: 13px;
+    }
+
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+
+      margin: 8px 0 0;
+      padding: 0;
+
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 500;
+      text-transform: none;
+      letter-spacing: normal;
+
+      cursor: pointer;
+    }
+
+    .checkbox-label input[type="checkbox"] {
+      width: 14px;
+      height: 14px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
     .badge {
       display: inline-flex;
       align-items: center;
@@ -1167,6 +1197,7 @@
                   <option value="email">Gmail (Email)</option>
                   <option value="outlook">Outlook (Microsoft 365)</option>
                   <option value="whatsapp">WhatsApp</option>
+                  <option value="teams">Microsoft Teams</option>
                   <option value="webhook">Webhook genérico</option>
                 </select>
 
@@ -1225,6 +1256,19 @@
                 <div class="attachment-error" id="attachment-error"></div>
 
 
+                <label for="table-input">
+                  Tabela
+                  <span class="badge">opcional</span>
+                </label>
+                <textarea id="table-input" placeholder="Nome, Status&#10;João, Aprovado&#10;Maria, Pendente"></textarea>
+                <label class="checkbox-label">
+                  <input type="checkbox" id="table-has-header" checked>
+                  Primeira linha é o cabeçalho
+                </label>
+                <p class="hint">Uma linha por linha da tabela, células separadas por vírgula. Teams e e-mail (Gmail/Outlook) mostram uma tabela de verdade; os demais canais recebem uma versão em texto alinhado.</p>
+                <div class="attachment-error" id="table-error"></div>
+
+
                 <button type="submit" class="primary" id="submit-btn">Enviar notificação</button>
 
               </form>
@@ -1264,6 +1308,7 @@
                 <option value="email">Email (Gmail)</option>
                 <option value="outlook">Outlook</option>
                 <option value="whatsapp">WhatsApp</option>
+                <option value="teams">Microsoft Teams</option>
                 <option value="webhook">Webhook</option>
               </select>
 
@@ -1433,6 +1478,9 @@
     const templateParamsInput = document.getElementById("template-params");
     const messageLabel = document.getElementById("message-label");
     const messageHint = document.getElementById("message-hint");
+    const tableInput = document.getElementById("table-input");
+    const tableHasHeaderInput = document.getElementById("table-has-header");
+    const tableError = document.getElementById("table-error");
     const form = document.getElementById("form");
     const result = document.getElementById("result");
     const submitBtn = document.getElementById("submit-btn");
@@ -1443,6 +1491,7 @@
       email: "E-mail do destinatário (ou deixe em branco para usar DEFAULT_EMAIL_TARGET do .env)",
       outlook: "E-mail do destinatário (ou deixe em branco para usar DEFAULT_OUTLOOK_TARGET do .env)",
       whatsapp: "Telefone com DDI (ex: +55 11 99999-9999), ou deixe em branco para usar DEFAULT_WHATSAPP_TARGET do .env",
+      teams: "URL do Workflow do Power Automate (*.logic.azure.com), ou deixe em branco para usar DEFAULT_TEAMS_TARGET do .env",
       webhook: "URL de destino (obrigatório para este canal)"
     };
 
@@ -1603,6 +1652,26 @@
       attachmentError.textContent = "";
     }
 
+    /* ===== TABELA (CSV simples: uma linha por linha, células por vírgula) ===== */
+
+    // Retorna null se o campo estiver vazio, {headers, rows} se válido, ou
+    // undefined se houver uma linha sem nenhuma célula (entrada inválida).
+    function parseTable(raw, hasHeader) {
+      const lines = raw.split("\n").map(l => l.trim()).filter(l => l.length > 0);
+      if (lines.length === 0) return null;
+
+      const parsed = lines.map(line => line.split(",").map(cell => cell.trim()));
+      if (parsed.some(cells => cells.length === 0 || (cells.length === 1 && cells[0] === ""))) {
+        return undefined;
+      }
+
+      if (hasHeader) {
+        const [headers, ...rows] = parsed;
+        return { headers, rows };
+      }
+      return { rows: parsed };
+    }
+
     /* ===== ENVIO ===== */
 
     form.addEventListener("submit", async (e) => {
@@ -1615,8 +1684,15 @@
       const templateName = templateNameInput.value.trim();
       const templateParamsRaw = templateParamsInput.value.trim();
 
-      if (!message && attachments.length === 0 && !templateName) {
-        showResult("error", "Escreva uma mensagem, informe um template ou anexe ao menos um arquivo antes de enviar.");
+      tableError.textContent = "";
+      const table = parseTable(tableInput.value, tableHasHeaderInput.checked);
+      if (table === undefined) {
+        tableError.textContent = "Tabela inválida: todas as linhas precisam ter pelo menos uma célula.";
+        return;
+      }
+
+      if (!message && attachments.length === 0 && !templateName && !table) {
+        showResult("error", "Escreva uma mensagem, informe um template, uma tabela ou anexe ao menos um arquivo antes de enviar.");
         return;
       }
 
@@ -1629,6 +1705,7 @@
           body.template_params = templateParamsRaw.split(",").map(p => p.trim());
         }
       }
+      if (table) body.table = table;
       if (attachments.length > 0) {
         body.attachments = attachments.map(a => ({
           filename: a.filename,
@@ -1656,6 +1733,8 @@
           document.getElementById("message").value = "";
           templateNameInput.value = "";
           templateParamsInput.value = "";
+          tableInput.value = "";
+          tableError.textContent = "";
           resetAttachments();
         }
       } catch (err) {

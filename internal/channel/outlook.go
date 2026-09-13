@@ -76,12 +76,18 @@ func (s *OutlookSender) Send(ctx context.Context, n *domain.Notification) error 
 		return fmt.Errorf("outlook: falha ao obter token: %w", err)
 	}
 
+	mimeType, bodyContent := emailBody(n)
+	graphContentType := "Text"
+	if mimeType == "text/html" {
+		graphContentType = "HTML"
+	}
+
 	payload := map[string]any{
 		"message": map[string]any{
 			"subject": n.Subject,
 			"body": map[string]any{
-				"contentType": "Text",
-				"content":     n.Message,
+				"contentType": graphContentType,
+				"content":     bodyContent,
 			},
 			"toRecipients": []map[string]any{
 				{"emailAddress": map[string]any{"address": n.Target}},

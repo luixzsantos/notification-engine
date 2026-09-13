@@ -88,6 +88,7 @@ func main() {
 		domain.ChannelEmail:    cfg.RateLimitEmailRPS,
 		domain.ChannelWhatsApp: cfg.RateLimitWhatsAppRPS,
 		domain.ChannelOutlook:  cfg.RateLimitOutlookRPS,
+		domain.ChannelTeams:    cfg.RateLimitTeamsRPS,
 	}
 	if !cfg.RateLimitEnabled {
 		// RPS "infinito" na prática: token bucket com burst altíssimo.
