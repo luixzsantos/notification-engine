@@ -40,7 +40,7 @@ func main() {
 	log.Printf("[api] conectado ao Redis em %s", cfg.RedisAddr)
 
 	dsn := db.BuildDSN(cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBPassword, cfg.DBName, cfg.DBSSLMode)
-	conn, err := db.Connect(dsn)
+	conn, err := db.Connect(dsn, cfg.DBMaxOpenConns)
 	if err != nil {
 		log.Fatalf("[api] falha ao conectar no PostgreSQL (%s:%s): %v", cfg.DBHost, cfg.DBPort, err)
 	}

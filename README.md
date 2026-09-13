@@ -163,6 +163,7 @@ Veja todos os detalhes em [`.env.example`](.env.example). Resumo:
 |---|---|---|
 | `REDIS_ADDR` | Sempre | Endereço do Redis (default: `localhost:6379`) |
 | `DB_HOST` / `DB_PORT` / `DB_USER` / `DB_PASSWORD` / `DB_NAME` | Sempre | Conexão com o PostgreSQL |
+| `DB_MAX_OPEN_CONNS` | Opcional | Máximo de conexões simultâneas ao Postgres por processo (default: `25`). Evita esgotar o `max_connections` do banco sob pico de carga |
 | `TELEGRAM_BOT_TOKEN` | Canal `telegram` e/ou bot | Token gerado pelo [@BotFather](https://t.me/BotFather) |
 | `TELEGRAM_BOT_ENABLED` | Bot do Telegram | `true` para o worker escutar comandos `/status` e `/retry` |
 | `GMAIL_USERNAME` / `GMAIL_APP_PASSWORD` | Canal `email` | Conta Gmail e [senha de app](https://myaccount.google.com/apppasswords) (requer 2FA ativo) |
@@ -345,11 +346,15 @@ go vet ./...            # análise estática
 
 Cobertura atual: `domain`, `retry` (backoff/jitter), `security` (proteção SSRF), `ratelimit`, `service` (idempotência, fallback de consistência, retry manual) e `worker` (dispatcher: sucesso, retry, DLQ, canal não registrado) têm testes unitários com fakes em memória — sem depender de Postgres/Redis reais. O pipeline (`.github/workflows/ci.yml`) roda tudo isso automaticamente a cada push/PR para `main`.
 
+Além dos testes automatizados, o sistema também foi validado sob **carga real** e **falhas reais injetadas manualmente** (Redis/Postgres caindo, canal externo indisponível, worker morto no meio do processamento, corrida de `Idempotency-Key`) — veja [BENCHMARKS.md](BENCHMARKS.md) e [RESILIENCE_TESTING.md](RESILIENCE_TESTING.md).
+
 ---
 
 ## Arquitetura e decisões técnicas
 
 Para o diagrama completo do fluxo e o *porquê* das decisões técnicas mais importantes — por que Redis Streams (e não Pub/Sub), como o Consumer Group evita processamento duplicado, quais são as garantias reais de entrega (at-least-once), como o backoff com jitter funciona, como a consistência entre PostgreSQL e Redis é mantida sem um Transactional Outbox completo, e os detalhes da proteção contra SSRF — veja **[ARCHITECTURE.md](ARCHITECTURE.md)**.
+
+Para números reais de desempenho (throughput por número de workers, efeito do rate limiter) e evidência de recuperação sob falhas reais injetadas manualmente, veja **[BENCHMARKS.md](BENCHMARKS.md)** e **[RESILIENCE_TESTING.md](RESILIENCE_TESTING.md)**.
 
 ---
 

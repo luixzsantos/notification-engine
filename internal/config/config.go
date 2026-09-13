@@ -20,12 +20,13 @@ type Config struct {
 	RedisConsumerGroup string
 	RedisConsumerName  string
 
-	DBHost     string
-	DBPort     string
-	DBUser     string
-	DBPassword string
-	DBName     string
-	DBSSLMode  string
+	DBHost         string
+	DBPort         string
+	DBUser         string
+	DBPassword     string
+	DBName         string
+	DBSSLMode      string
+	DBMaxOpenConns int
 
 	TelegramBotToken   string
 	TelegramBotEnabled bool
@@ -96,12 +97,13 @@ func Load() *Config {
 		RedisConsumerGroup: getEnv("REDIS_CONSUMER_GROUP", "notification-workers"),
 		RedisConsumerName:  getEnv("REDIS_CONSUMER_NAME", "worker-1"),
 
-		DBHost:     getEnv("DB_HOST", "localhost"),
-		DBPort:     getEnv("DB_PORT", "5432"),
-		DBUser:     getEnv("DB_USER", "engine"),
-		DBPassword: getEnv("DB_PASSWORD", "engine"),
-		DBName:     getEnv("DB_NAME", "notification_engine"),
-		DBSSLMode:  getEnv("DB_SSL_MODE", "disable"),
+		DBHost:         getEnv("DB_HOST", "localhost"),
+		DBPort:         getEnv("DB_PORT", "5432"),
+		DBUser:         getEnv("DB_USER", "engine"),
+		DBPassword:     getEnv("DB_PASSWORD", "engine"),
+		DBName:         getEnv("DB_NAME", "notification_engine"),
+		DBSSLMode:      getEnv("DB_SSL_MODE", "disable"),
+		DBMaxOpenConns: getEnvAsInt("DB_MAX_OPEN_CONNS", 25),
 
 		TelegramBotToken:   getEnv("TELEGRAM_BOT_TOKEN", ""),
 		TelegramBotEnabled: getEnvAsBool("TELEGRAM_BOT_ENABLED", false),

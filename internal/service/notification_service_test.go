@@ -302,3 +302,23 @@ func TestRetry_RejectsNotificationNotInRetryOrDLQ(t *testing.T) {
 		t.Fatal("esperava erro ao tentar retry manual de notificação pending")
 	}
 }
+
+func TestIsValidationError(t *testing.T) {
+	validationErrs := []error{
+		domain.ErrInvalidChannel,
+		domain.ErrEmptyTarget,
+		domain.ErrEmptyMessage,
+		domain.ErrTooManyAttachments,
+		domain.ErrAttachmentTooLarge,
+	}
+	for _, err := range validationErrs {
+		if !IsValidationError(err) {
+			t.Errorf("esperava %v classificado como erro de validação", err)
+		}
+	}
+
+	internalErr := errors.New("dial tcp: connection refused")
+	if IsValidationError(internalErr) {
+		t.Error("erro interno de infraestrutura não deveria ser classificado como validação (vazaria detalhe pro cliente)")
+	}
+}

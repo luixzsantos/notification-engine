@@ -139,13 +139,35 @@ func (s *NotificationService) CreateBulk(ctx context.Context, inputs []CreateNot
 	for i, input := range inputs {
 		n, err := s.CreateNotification(ctx, input)
 		if err != nil {
-			results[i] = BulkResult{Status: "rejected", Error: err.Error()}
+			if IsValidationError(err) {
+				results[i] = BulkResult{Status: "rejected", Error: err.Error()}
+			} else {
+				// Erro interno (ex: Postgres/Redis inacessível): detalhe
+				// completo só no log do servidor, resposta genérica no item.
+				log.Printf("[service] erro interno ao criar item %d do bulk: %v", i, err)
+				results[i] = BulkResult{Status: "rejected", Error: "falha interna ao processar este item, tente novamente"}
+			}
 			continue
 		}
 		results[i] = BulkResult{ID: n.ID, Status: string(n.Status)}
 	}
 
 	return results
+}
+
+// IsValidationError classifica um erro de CreateNotification como "culpa do
+// cliente" (input inválido, alvo bloqueado por SSRF) — seguro para devolver
+// a mensagem original na resposta HTTP. Qualquer outro erro é tratado como
+// falha interna: o chamador deve logar o detalhe e responder com uma
+// mensagem genérica, para não vazar detalhes de infraestrutura (strings de
+// conexão, erros de driver etc.) para o cliente da API.
+func IsValidationError(err error) bool {
+	return errors.Is(err, domain.ErrInvalidChannel) ||
+		errors.Is(err, domain.ErrEmptyTarget) ||
+		errors.Is(err, domain.ErrEmptyMessage) ||
+		errors.Is(err, domain.ErrTooManyAttachments) ||
+		errors.Is(err, domain.ErrAttachmentTooLarge) ||
+		errors.Is(err, security.ErrBlockedTarget)
 }
 
 func (s *NotificationService) GetByID(ctx context.Context, id string) (*domain.Notification, error) {

@@ -2,14 +2,12 @@ package handler
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"strconv"
 
 	"notification-engine/internal/domain"
-	"notification-engine/internal/security"
 	"notification-engine/internal/service"
 )
 
@@ -65,13 +63,15 @@ func (h *NotificationHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	notification, err := h.service.CreateNotification(r.Context(), input)
 	if err != nil {
-		status := http.StatusInternalServerError
-		if isValidationError(err) {
-			status = http.StatusBadRequest
-		} else {
-			log.Printf("[handler] erro interno ao criar notificação: %v", err)
+		if service.IsValidationError(err) {
+			writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
+			return
 		}
-		writeJSON(w, status, errorResponse{Error: err.Error()})
+		// Erro interno (ex: Postgres/Redis inacessível): o detalhe completo
+		// (que pode incluir string de conexão, driver interno etc.) só vai
+		// pro log do servidor — o cliente recebe uma mensagem genérica.
+		log.Printf("[handler] erro interno ao criar notificação: %v", err)
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "falha interna ao processar a notificação, tente novamente"})
 		return
 	}
 
@@ -171,15 +171,6 @@ func (h *NotificationHandler) Retry(w http.ResponseWriter, r *http.Request) {
 // HealthCheck trata GET /health
 func (h *NotificationHandler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
-}
-
-func isValidationError(err error) bool {
-	return errors.Is(err, domain.ErrInvalidChannel) ||
-		errors.Is(err, domain.ErrEmptyTarget) ||
-		errors.Is(err, domain.ErrEmptyMessage) ||
-		errors.Is(err, domain.ErrTooManyAttachments) ||
-		errors.Is(err, domain.ErrAttachmentTooLarge) ||
-		errors.Is(err, security.ErrBlockedTarget)
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {
