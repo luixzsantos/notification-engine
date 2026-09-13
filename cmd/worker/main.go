@@ -65,6 +65,16 @@ func main() {
 			AppPassword: cfg.GmailAppPassword,
 			FromName:    cfg.GmailFromName,
 		},
+		channel.WhatsAppConfig{
+			PhoneNumberID: cfg.WhatsAppPhoneNumberID,
+			AccessToken:   cfg.WhatsAppAccessToken,
+		},
+		channel.OutlookConfig{
+			TenantID:     cfg.OutlookTenantID,
+			ClientID:     cfg.OutlookClientID,
+			ClientSecret: cfg.OutlookClientSecret,
+			SenderEmail:  cfg.OutlookSenderEmail,
+		},
 		cfg.AllowPrivateNetworkTargets,
 	)
 	if cfg.AllowPrivateNetworkTargets {
@@ -76,6 +86,8 @@ func main() {
 		domain.ChannelTelegram: cfg.RateLimitTelegramRPS,
 		domain.ChannelWebhook:  cfg.RateLimitWebhookRPS,
 		domain.ChannelEmail:    cfg.RateLimitEmailRPS,
+		domain.ChannelWhatsApp: cfg.RateLimitWhatsAppRPS,
+		domain.ChannelOutlook:  cfg.RateLimitOutlookRPS,
 	}
 	if !cfg.RateLimitEnabled {
 		// RPS "infinito" na prática: token bucket com burst altíssimo.

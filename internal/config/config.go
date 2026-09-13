@@ -37,9 +37,25 @@ type Config struct {
 	GmailAppPassword string
 	GmailFromName    string
 
+	// WhatsApp Cloud API (Meta). Mensagens de negócio (fora de uma janela de
+	// conversa de 24h) exigem um Message Template pré-aprovado — veja
+	// domain.Notification.TemplateName.
+	WhatsAppPhoneNumberID string
+	WhatsAppAccessToken   string
+
+	// Outlook / Microsoft 365 via Graph API. Requer um app registrado no
+	// Azure AD com permissão de aplicativo "Mail.Send" consentida por um
+	// admin do tenant.
+	OutlookTenantID     string
+	OutlookClientID     string
+	OutlookClientSecret string
+	OutlookSenderEmail  string
+
 	DefaultDiscordTarget  string
 	DefaultTelegramTarget string
 	DefaultEmailTarget    string
+	DefaultWhatsAppTarget string
+	DefaultOutlookTarget  string
 
 	HTTPClientTimeoutSeconds int
 	WorkerConcurrency        int
@@ -54,6 +70,8 @@ type Config struct {
 	RateLimitTelegramRPS float64
 	RateLimitWebhookRPS  float64
 	RateLimitEmailRPS    float64
+	RateLimitWhatsAppRPS float64
+	RateLimitOutlookRPS  float64
 
 	MetricsEnabled bool
 	MetricsPort    string
@@ -114,9 +132,19 @@ func Load() *Config {
 		GmailAppPassword: getEnv("GMAIL_APP_PASSWORD", ""),
 		GmailFromName:    getEnv("GMAIL_FROM_NAME", ""),
 
+		WhatsAppPhoneNumberID: getEnv("WHATSAPP_PHONE_NUMBER_ID", ""),
+		WhatsAppAccessToken:   getEnv("WHATSAPP_ACCESS_TOKEN", ""),
+
+		OutlookTenantID:     getEnv("OUTLOOK_TENANT_ID", ""),
+		OutlookClientID:     getEnv("OUTLOOK_CLIENT_ID", ""),
+		OutlookClientSecret: getEnv("OUTLOOK_CLIENT_SECRET", ""),
+		OutlookSenderEmail:  getEnv("OUTLOOK_SENDER_EMAIL", ""),
+
 		DefaultDiscordTarget:  getEnv("DEFAULT_DISCORD_TARGET", ""),
 		DefaultTelegramTarget: getEnv("DEFAULT_TELEGRAM_TARGET", ""),
 		DefaultEmailTarget:    getEnv("DEFAULT_EMAIL_TARGET", ""),
+		DefaultWhatsAppTarget: getEnv("DEFAULT_WHATSAPP_TARGET", ""),
+		DefaultOutlookTarget:  getEnv("DEFAULT_OUTLOOK_TARGET", ""),
 
 		HTTPClientTimeoutSeconds: getEnvAsInt("HTTP_CLIENT_TIMEOUT_SECONDS", 10),
 		WorkerConcurrency:        getEnvAsInt("WORKER_CONCURRENCY", 10),
@@ -131,6 +159,8 @@ func Load() *Config {
 		RateLimitTelegramRPS: getEnvAsFloat("RATE_LIMIT_TELEGRAM_RPS", 20),
 		RateLimitWebhookRPS:  getEnvAsFloat("RATE_LIMIT_WEBHOOK_RPS", 50),
 		RateLimitEmailRPS:    getEnvAsFloat("RATE_LIMIT_EMAIL_RPS", 5),
+		RateLimitWhatsAppRPS: getEnvAsFloat("RATE_LIMIT_WHATSAPP_RPS", 10),
+		RateLimitOutlookRPS:  getEnvAsFloat("RATE_LIMIT_OUTLOOK_RPS", 10),
 
 		MetricsEnabled: getEnvAsBool("METRICS_ENABLED", true),
 		MetricsPort:    getEnv("METRICS_PORT", "9091"),

@@ -12,6 +12,9 @@ CREATE TABLE IF NOT EXISTS notifications (
     payload         JSONB NOT NULL DEFAULT '{}',
     headers         JSONB NOT NULL DEFAULT '{}',
     attachments     JSONB NOT NULL DEFAULT '[]',
+    template_name   TEXT NOT NULL DEFAULT '',
+    template_locale TEXT NOT NULL DEFAULT '',
+    template_params JSONB NOT NULL DEFAULT '[]',
     status          TEXT NOT NULL,
     attempts        INTEGER NOT NULL DEFAULT 0,
     max_attempts    INTEGER NOT NULL DEFAULT 5,
@@ -24,6 +27,9 @@ CREATE TABLE IF NOT EXISTS notifications (
 -- Cobre instalações que criaram a tabela antes destes campos existirem.
 ALTER TABLE notifications ADD COLUMN IF NOT EXISTS attachments JSONB NOT NULL DEFAULT '[]';
 ALTER TABLE notifications ADD COLUMN IF NOT EXISTS idempotency_key TEXT NOT NULL DEFAULT '';
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS template_name TEXT NOT NULL DEFAULT '';
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS template_locale TEXT NOT NULL DEFAULT '';
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS template_params JSONB NOT NULL DEFAULT '[]';
 
 CREATE INDEX IF NOT EXISTS idx_notifications_status ON notifications (status);
 CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications (created_at DESC);

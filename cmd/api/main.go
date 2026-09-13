@@ -63,6 +63,12 @@ func main() {
 	if cfg.DefaultEmailTarget != "" {
 		defaultTargets[domain.ChannelEmail] = cfg.DefaultEmailTarget
 	}
+	if cfg.DefaultWhatsAppTarget != "" {
+		defaultTargets[domain.ChannelWhatsApp] = cfg.DefaultWhatsAppTarget
+	}
+	if cfg.DefaultOutlookTarget != "" {
+		defaultTargets[domain.ChannelOutlook] = cfg.DefaultOutlookTarget
+	}
 
 	notificationService := service.NewNotificationService(
 		producer, repo, defaultTargets,

@@ -1,6 +1,6 @@
 # 📨 Webhook & Notification Engine
 
-Serviço assíncrono de alto desempenho para disparo de notificações multicanais (**Discord**, **Telegram**, **Gmail** e **Webhooks genéricos**), construído em **Go** seguindo os princípios de **Clean Architecture**, com concorrência nativa via goroutines, fila de processamento no **Redis Streams**, persistência/auditoria em **PostgreSQL**, retry com backoff exponencial, rate limiting por canal e métricas Prometheus.
+Serviço assíncrono de alto desempenho para disparo de notificações multicanais (**Discord**, **Telegram**, **Gmail**, **Outlook/Microsoft 365**, **WhatsApp** e **Webhooks genéricos**), construído em **Go** seguindo os princípios de **Clean Architecture**, com concorrência nativa via goroutines, fila de processamento no **Redis Streams**, persistência/auditoria em **PostgreSQL**, retry com backoff exponencial, rate limiting por canal e métricas Prometheus.
 
 ---
 
@@ -24,14 +24,14 @@ Serviço assíncrono de alto desempenho para disparo de notificações multicana
 - [Health checks](#health-checks)
 - [Testes e CI](#testes-e-ci)
 - [Arquitetura e decisões técnicas](#arquitetura-e-decisões-técnicas)
-- [Upgrade V1 → V2 → V3](#upgrade-v1--v2--v3)
+- [Upgrade V1 → V2 → V3 → V4](#upgrade-v1--v2--v3--v4)
 - [Licença](#licença)
 
 ---
 
 ## O que o projeto faz
 
-Em resumo: é um "correio automático". Você manda um pedido de notificação pra API, ela responde na hora (sem te fazer esperar a entrega de verdade), guarda o pedido numa fila, e um processo separado (o **Worker**) entrega essa notificação no Discord, Telegram, Gmail ou qualquer Webhook — em segundo plano, com múltiplas entregas acontecendo em paralelo.
+Em resumo: é um "correio automático". Você manda um pedido de notificação pra API, ela responde na hora (sem te fazer esperar a entrega de verdade), guarda o pedido numa fila, e um processo separado (o **Worker**) entrega essa notificação no Discord, Telegram, Gmail, Outlook, WhatsApp ou qualquer Webhook — em segundo plano, com múltiplas entregas acontecendo em paralelo.
 
 Essa separação entre "receber o pedido" (API) e "entregar de verdade" (Worker) é o que permite o sistema aguentar picos de volume sem travar, e continuar funcionando mesmo se um canal específico estiver fora do ar. Quando um envio falha, a notificação não é descartada: o worker agenda novas tentativas com backoff exponencial e, se todas falharem, ela vai para uma DLQ consultável via API, bot ou dashboard.
 
@@ -50,10 +50,10 @@ Cliente → POST /api/v1/notifications → API (Go) ── grava ──→ Postg
                               │           │           │      │      │
                           rate limit  dispatcher  atualiza status ──┘
                               │           │
-                ┌─────────────┼───────────┼────────────┐
-                ▼             ▼           ▼             ▼
-            Discord       Telegram      Gmail        Webhook
-            Webhook       Bot API       (SMTP)       genérico
+                ┌─────────────┼───────────┼────────────┼────────────┼────────────┐
+                ▼             ▼           ▼             ▼            ▼            ▼
+            Discord       Telegram      Gmail        Outlook     WhatsApp      Webhook
+            Webhook       Bot API       (SMTP)     (Graph API) (Cloud API)     genérico
 
   Falha? → agenda retry (backoff exponencial) ou move para DLQ
               │
@@ -97,7 +97,7 @@ notification-engine/
 │   ├── handler/                 # Controladores HTTP
 │   ├── service/                 # Regras de negócio (criar, listar, retry, bulk)
 │   ├── queue/                   # Producer/Consumer do Redis Streams
-│   ├── channel/                 # Conectores: discord, telegram, gmail, webhook
+│   ├── channel/                 # Conectores: discord, telegram, gmail, outlook, whatsapp, webhook
 │   ├── db/                      # Conexão PostgreSQL + repositório + schema.sql
 │   ├── worker/                  # Dispatcher (rate limit + retry/DLQ) + RetryPoller
 │   ├── ratelimit/                # Token bucket por canal
@@ -167,7 +167,9 @@ Veja todos os detalhes em [`.env.example`](.env.example). Resumo:
 | `TELEGRAM_BOT_TOKEN` | Canal `telegram` e/ou bot | Token gerado pelo [@BotFather](https://t.me/BotFather) |
 | `TELEGRAM_BOT_ENABLED` | Bot do Telegram | `true` para o worker escutar comandos `/status` e `/retry` |
 | `GMAIL_USERNAME` / `GMAIL_APP_PASSWORD` | Canal `email` | Conta Gmail e [senha de app](https://myaccount.google.com/apppasswords) (requer 2FA ativo) |
-| `DEFAULT_DISCORD_TARGET` / `DEFAULT_TELEGRAM_TARGET` / `DEFAULT_EMAIL_TARGET` | Opcional | Usados quando `target` não é enviado na requisição |
+| `WHATSAPP_PHONE_NUMBER_ID` / `WHATSAPP_ACCESS_TOKEN` | Canal `whatsapp` | ID do número e token de acesso da [WhatsApp Cloud API](https://developers.facebook.com/docs/whatsapp/cloud-api) (Meta) |
+| `OUTLOOK_TENANT_ID` / `OUTLOOK_CLIENT_ID` / `OUTLOOK_CLIENT_SECRET` / `OUTLOOK_SENDER_EMAIL` | Canal `outlook` | Credenciais de um app do Azure AD com permissão de aplicativo `Mail.Send` consentida por um admin do tenant |
+| `DEFAULT_DISCORD_TARGET` / `DEFAULT_TELEGRAM_TARGET` / `DEFAULT_EMAIL_TARGET` / `DEFAULT_WHATSAPP_TARGET` / `DEFAULT_OUTLOOK_TARGET` | Opcional | Usados quando `target` não é enviado na requisição |
 | `WORKER_CONCURRENCY` | Opcional | Nº de goroutines consumidoras (default: `10`) |
 | `RETRY_MAX_ATTEMPTS` | Opcional | Tentativas antes de mover para a DLQ (default: `5`) |
 | `RETRY_MAX_BACKOFF_SECONDS` | Opcional | Teto do backoff exponencial (default: `3600`) |
@@ -202,6 +204,26 @@ Veja todos os detalhes em [`.env.example`](.env.example). Resumo:
 **Gmail**
 ```json
 {"channel":"email","target":"destinatario@exemplo.com","subject":"Assunto","message":"Olá!"}
+```
+
+**Outlook / Microsoft 365**
+```json
+{"channel":"outlook","target":"destinatario@exemplo.com","subject":"Assunto","message":"Olá!"}
+```
+
+**WhatsApp — texto livre** (só funciona dentro de uma janela de conversa ativa, últimas 24h — o destinatário precisa ter mandado mensagem recentemente):
+```json
+{"channel":"whatsapp","target":"+5511999999999","message":"Olá!"}
+```
+
+**WhatsApp — template** (obrigatório para mensagens iniciadas pela empresa/alertas, fora da janela de 24h; o template precisa estar pré-aprovado no WhatsApp Manager):
+```json
+{
+  "channel": "whatsapp",
+  "target": "+5511999999999",
+  "template_name": "payment_approved",
+  "template_params": ["João", "149,90"]
+}
 ```
 
 **Resposta (202 Accepted)**
@@ -358,7 +380,7 @@ Para números reais de desempenho (throughput por número de workers, efeito do 
 
 ---
 
-## Upgrade V1 → V2 → V3
+## Upgrade V1 → V2 → V3 → V4
 
 Se você estava usando a V1, consulte **[UPGRADE_V2_GUIDE.md](UPGRADE_V2_GUIDE.md)** para:
 
@@ -367,7 +389,7 @@ Se você estava usando a V1, consulte **[UPGRADE_V2_GUIDE.md](UPGRADE_V2_GUIDE.m
 - Documentação completa dos novos recursos (Bulk API, Retry manual, Dashboard, Bot, Métricas)
 - Troubleshooting e checklist de migração
 
-Para detalhes técnicos das mudanças da V2, veja **[CHANGELOG_V2.md](CHANGELOG_V2.md)**; para a rodada de testes/segurança/confiabilidade (V3), veja **[CHANGELOG_V3.md](CHANGELOG_V3.md)**.
+Para detalhes técnicos das mudanças da V2, veja **[CHANGELOG_V2.md](CHANGELOG_V2.md)**; para a rodada de testes/segurança/confiabilidade (V3), veja **[CHANGELOG_V3.md](CHANGELOG_V3.md)**; para os novos canais Outlook e WhatsApp (V4), veja **[CHANGELOG_V4.md](CHANGELOG_V4.md)**.
 
 ---
 

@@ -30,6 +30,7 @@ func NewNotificationRepository(conn *sql.DB) *NotificationRepository {
 
 const selectColumns = `
 	id, idempotency_key, channel, target, subject, message, payload, headers, attachments,
+	template_name, template_locale, template_params,
 	status, attempts, max_attempts, last_error, next_retry_at,
 	created_at, updated_at`
 
@@ -49,13 +50,20 @@ func (r *NotificationRepository) Create(ctx context.Context, n *domain.Notificat
 		return fmt.Errorf("db: falha ao serializar anexos: %w", err)
 	}
 
+	templateParams, err := json.Marshal(orEmptyStringSlice(n.TemplateParams))
+	if err != nil {
+		return fmt.Errorf("db: falha ao serializar parâmetros de template: %w", err)
+	}
+
 	_, err = r.conn.ExecContext(ctx, `
 		INSERT INTO notifications
 			(id, idempotency_key, channel, target, subject, message, payload, headers, attachments,
+			 template_name, template_locale, template_params,
 			 status, attempts, max_attempts, last_error, next_retry_at,
 			 created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
 		n.ID, n.IdempotencyKey, n.Channel, n.Target, n.Subject, n.Message, payload, headers, attachments,
+		n.TemplateName, n.TemplateLocale, templateParams,
 		n.Status, n.Attempts, n.MaxAttempts, n.LastError, n.NextRetryAt,
 		n.CreatedAt, n.UpdatedAt,
 	)
@@ -239,11 +247,12 @@ type row interface {
 
 func scanNotification(r row) (*domain.Notification, error) {
 	var n domain.Notification
-	var payload, headers, attachments []byte
+	var payload, headers, attachments, templateParams []byte
 	var nextRetryAt sql.NullTime
 
 	err := r.Scan(
 		&n.ID, &n.IdempotencyKey, &n.Channel, &n.Target, &n.Subject, &n.Message, &payload, &headers, &attachments,
+		&n.TemplateName, &n.TemplateLocale, &templateParams,
 		&n.Status, &n.Attempts, &n.MaxAttempts, &n.LastError, &nextRetryAt,
 		&n.CreatedAt, &n.UpdatedAt,
 	)
@@ -259,6 +268,9 @@ func scanNotification(r row) (*domain.Notification, error) {
 	}
 	if err := json.Unmarshal(attachments, &n.Attachments); err != nil {
 		return nil, fmt.Errorf("anexos inválidos: %w", err)
+	}
+	if err := json.Unmarshal(templateParams, &n.TemplateParams); err != nil {
+		return nil, fmt.Errorf("parâmetros de template inválidos: %w", err)
 	}
 	if nextRetryAt.Valid {
 		n.NextRetryAt = &nextRetryAt.Time
@@ -304,6 +316,13 @@ func orEmptyAttachments(a []domain.Attachment) []domain.Attachment {
 		return []domain.Attachment{}
 	}
 	return a
+}
+
+func orEmptyStringSlice(s []string) []string {
+	if s == nil {
+		return []string{}
+	}
+	return s
 }
 
 // buildDSN monta a connection string do PostgreSQL a partir das partes

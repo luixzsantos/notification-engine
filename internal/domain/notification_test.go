@@ -107,7 +107,7 @@ func TestValidate_StripsDataURIPrefixFromAttachment(t *testing.T) {
 }
 
 func TestIsValidChannel(t *testing.T) {
-	valid := []ChannelType{ChannelDiscord, ChannelTelegram, ChannelWebhook, ChannelEmail}
+	valid := []ChannelType{ChannelDiscord, ChannelTelegram, ChannelWebhook, ChannelEmail, ChannelWhatsApp, ChannelOutlook}
 	for _, c := range valid {
 		if !IsValidChannel(c) {
 			t.Errorf("esperava %q ser um canal válido", c)
@@ -116,5 +116,43 @@ func TestIsValidChannel(t *testing.T) {
 
 	if IsValidChannel("sms") {
 		t.Error("esperava 'sms' ser um canal inválido")
+	}
+}
+
+func TestValidate_WhatsAppTemplateSatisfiesEmptyMessage(t *testing.T) {
+	n := &Notification{
+		Channel:      ChannelWhatsApp,
+		Target:       "+5511999999999",
+		TemplateName: "payment-approved",
+		TemplateParams: []string{
+			"João", "149,90",
+		},
+	}
+
+	if err := n.Validate(); err != nil {
+		t.Fatalf("mensagem de template sem 'message' deveria ser aceita, obteve: %v", err)
+	}
+}
+
+func TestValidate_WhatsAppWithoutMessageOrTemplateFails(t *testing.T) {
+	n := &Notification{
+		Channel: ChannelWhatsApp,
+		Target:  "+5511999999999",
+	}
+
+	if err := n.Validate(); !errors.Is(err, ErrEmptyMessage) {
+		t.Fatalf("esperava ErrEmptyMessage sem message nem template, obteve: %v", err)
+	}
+}
+
+func TestValidate_OutlookRequiresTarget(t *testing.T) {
+	n := &Notification{
+		Channel: ChannelOutlook,
+		Subject: "Assunto",
+		Message: "corpo",
+	}
+
+	if err := n.Validate(); !errors.Is(err, ErrEmptyTarget) {
+		t.Fatalf("esperava ErrEmptyTarget, obteve: %v", err)
 	}
 }

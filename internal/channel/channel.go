@@ -31,8 +31,18 @@ type GmailConfig struct {
 // Discord e Webhook (os dois que fazem requisição HTTP a uma URL fornecida
 // pelo cliente da API) usam um http.Client "hardened" contra SSRF — recusa
 // conectar em IPs privados/loopback/link-local, a menos que
-// allowPrivateNetworks esteja ligado (uso local/dev apenas).
-func NewRegistry(httpTimeout time.Duration, telegramBotToken string, gmailCfg GmailConfig, allowPrivateNetworks bool) *Registry {
+// allowPrivateNetworks esteja ligado (uso local/dev apenas). Os demais
+// canais (Telegram, Gmail, WhatsApp, Outlook) sempre falam com um host fixo
+// do próprio provedor, nunca com uma URL fornecida pelo cliente da API —
+// não há superfície de SSRF neles, então usam um client comum.
+func NewRegistry(
+	httpTimeout time.Duration,
+	telegramBotToken string,
+	gmailCfg GmailConfig,
+	whatsappCfg WhatsAppConfig,
+	outlookCfg OutlookConfig,
+	allowPrivateNetworks bool,
+) *Registry {
 	safeClient := security.SafeHTTPClient(httpTimeout, allowPrivateNetworks)
 	plainClient := &http.Client{Timeout: httpTimeout}
 
@@ -48,6 +58,8 @@ func NewRegistry(httpTimeout time.Duration, telegramBotToken string, gmailCfg Gm
 		gmailCfg.AppPassword,
 		gmailCfg.FromName,
 	))
+	registry.Register(NewWhatsAppSender(plainClient, whatsappCfg))
+	registry.Register(NewOutlookSender(plainClient, outlookCfg))
 
 	return registry
 }

@@ -25,6 +25,12 @@ type CreateNotificationInput struct {
 	Payload     map[string]any      `json:"payload,omitempty"`
 	Headers     map[string]string   `json:"headers,omitempty"`
 	Attachments []domain.Attachment `json:"attachments,omitempty"`
+
+	// Usados pelo canal "whatsapp" — veja domain.Notification.TemplateName.
+	TemplateName   string   `json:"template_name,omitempty"`
+	TemplateLocale string   `json:"template_locale,omitempty"`
+	TemplateParams []string `json:"template_params,omitempty"`
+
 	// IdempotencyKey normalmente vem do header HTTP Idempotency-Key (POST
 	// /notifications); no /bulk, como não há um header por item, também
 	// pode ser informado diretamente aqui no corpo JSON de cada item.
@@ -230,6 +236,9 @@ func (s *NotificationService) build(input CreateNotificationInput) *domain.Notif
 		Payload:        input.Payload,
 		Headers:        input.Headers,
 		Attachments:    input.Attachments,
+		TemplateName:   input.TemplateName,
+		TemplateLocale: input.TemplateLocale,
+		TemplateParams: input.TemplateParams,
 		Status:         domain.StatusPending,
 		MaxAttempts:    s.maxAttempts,
 		CreatedAt:      now,

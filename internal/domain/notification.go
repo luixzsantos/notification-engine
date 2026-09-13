@@ -15,7 +15,9 @@ const (
 	ChannelDiscord  ChannelType = "discord"
 	ChannelTelegram ChannelType = "telegram"
 	ChannelWebhook  ChannelType = "webhook"
-	ChannelEmail    ChannelType = "email" // Gmail (SMTP)
+	ChannelEmail    ChannelType = "email"    // Gmail (SMTP)
+	ChannelWhatsApp ChannelType = "whatsapp" // WhatsApp Cloud API (Meta)
+	ChannelOutlook  ChannelType = "outlook"  // Microsoft 365 / Outlook (Graph API)
 )
 
 // Status representa o estado do ciclo de vida de uma notificação.
@@ -67,25 +69,36 @@ type Notification struct {
 	ID             string            `json:"id"`
 	IdempotencyKey string            `json:"idempotency_key,omitempty"` // opcional; evita duplicar entrega em reenvios do cliente
 	Channel        ChannelType       `json:"channel"`
-	Target         string            `json:"target"`            // URL (discord/webhook), chat_id (telegram) ou e-mail do destinatário (email)
-	Subject        string            `json:"subject,omitempty"` // usado apenas pelo canal "email"
+	Target         string            `json:"target"`            // URL (discord/webhook), chat_id (telegram), e-mail (email/outlook) ou telefone E.164 (whatsapp)
+	Subject        string            `json:"subject,omitempty"` // usado pelos canais "email" e "outlook"
 	Message        string            `json:"message"`
 	Payload        map[string]any    `json:"payload,omitempty"`     // corpo customizado (usado no webhook genérico)
 	Headers        map[string]string `json:"headers,omitempty"`     // headers customizados (usado no webhook genérico)
 	Attachments    []Attachment      `json:"attachments,omitempty"` // arquivos/fotos anexados
-	Status         Status            `json:"status"`
-	Attempts       int               `json:"attempts"`
-	MaxAttempts    int               `json:"max_attempts"`
-	LastError      string            `json:"last_error,omitempty"`
-	NextRetryAt    *time.Time        `json:"next_retry_at,omitempty"`
-	CreatedAt      time.Time         `json:"created_at"`
-	UpdatedAt      time.Time         `json:"updated_at"`
+
+	// Campos de template, usados pelo canal "whatsapp": mensagens de negócio
+	// (iniciadas pela empresa, fora de uma janela de conversa de 24h) exigem
+	// um Message Template pré-aprovado pela Meta em vez de texto livre.
+	// TemplateParams preenche as variáveis posicionais do template ({{1}},
+	// {{2}}...), na ordem. Se TemplateName estiver vazio, o envio usa texto
+	// livre (Message) — só funciona dentro de uma janela de conversa ativa.
+	TemplateName   string   `json:"template_name,omitempty"`
+	TemplateLocale string   `json:"template_locale,omitempty"` // ex: "pt_BR"; default "pt_BR" se omitido
+	TemplateParams []string `json:"template_params,omitempty"`
+
+	Status      Status     `json:"status"`
+	Attempts    int        `json:"attempts"`
+	MaxAttempts int        `json:"max_attempts"`
+	LastError   string     `json:"last_error,omitempty"`
+	NextRetryAt *time.Time `json:"next_retry_at,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
 }
 
 // IsValidChannel confere se o canal informado é suportado pela engine.
 func IsValidChannel(c ChannelType) bool {
 	switch c {
-	case ChannelDiscord, ChannelTelegram, ChannelWebhook, ChannelEmail:
+	case ChannelDiscord, ChannelTelegram, ChannelWebhook, ChannelEmail, ChannelWhatsApp, ChannelOutlook:
 		return true
 	default:
 		return false
@@ -100,7 +113,7 @@ func (n *Notification) Validate() error {
 	if n.Target == "" {
 		return ErrEmptyTarget
 	}
-	if n.Message == "" && n.Payload == nil && len(n.Attachments) == 0 {
+	if n.Message == "" && n.Payload == nil && len(n.Attachments) == 0 && n.TemplateName == "" {
 		return ErrEmptyMessage
 	}
 	if len(n.Attachments) > MaxAttachments {

@@ -28,7 +28,7 @@ flowchart TD
         C2 --> Dispatcher
         Dispatcher --> RateLimit["Rate Limiter\n(token bucket por canal)"]
         RateLimit --> SSRF["http.Client hardened\n(bloqueia IP privado/interno)"]
-        SSRF --> Channels["Discord / Telegram / Gmail / Webhook"]
+        SSRF --> Channels["Discord / Telegram / Gmail /\nOutlook / WhatsApp / Webhook"]
         Dispatcher -->|"Update status"| PG
     end
 
@@ -230,6 +230,34 @@ servidor público.
 `ALLOW_PRIVATE_NETWORK_TARGETS=true` desliga as três camadas — existe só
 para testar contra serviços internos em desenvolvimento; nunca deveria ser
 ligado em produção.
+
+---
+
+## Canais Outlook e WhatsApp: por que não têm superfície de SSRF
+
+Diferente de webhook/discord, os canais **Outlook** e **WhatsApp** não
+recebem uma URL do cliente da API — `target` é um e-mail ou um número de
+telefone, e a requisição HTTP sempre vai para um host fixo do próprio
+provedor (`graph.microsoft.com`, `graph.facebook.com`). Não há como o
+cliente da API redirecionar essa chamada para outro lugar, então esses dois
+senders usam um `http.Client` comum, sem o hardening contra SSRF que
+webhook/discord precisam.
+
+**Outlook** autentica via OAuth2 *client credentials* (fluxo de aplicativo,
+sem usuário interativo) — o `OutlookSender` cacheia o token de acesso em
+memória e só busca um novo quando o cacheado está perto de expirar
+(`tokenRefreshMargin` de 60s de antecedência), em vez de autenticar a cada
+envio. Chamadas concorrentes disputam o mesmo mutex; só uma de fato busca
+um token novo quando o cache expira, as demais reaproveitam o resultado.
+
+**WhatsApp** exige um Message Template pré-aprovado pela Meta para qualquer
+mensagem que a empresa inicie (alertas, avisos) fora de uma janela de
+conversa de 24h — texto livre só é aceito pela API dentro dessa janela
+(quando o destinatário mandou mensagem recentemente). Por isso
+`domain.Notification` tem `TemplateName`/`TemplateLocale`/`TemplateParams`
+como uma alternativa a `Message`: notificações de negócio (a maioria dos
+casos de alerta/aviso) devem usar template; texto livre é a exceção, não a
+regra, para esse canal.
 
 ---
 

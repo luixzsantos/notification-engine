@@ -1106,7 +1106,8 @@
 
             <div class="welcome">
               <h1>Visão geral</h1>
-              <p>Acompanhe, num único lugar, o que já foi enviado, o que está em andamento e o que precisa da sua atenção.</p>
+              <p>Acompanhe, num único lugar, o que já foi enviado, o que está em andamento e o que precisa da sua
+                atenção.</p>
             </div>
 
             <div class="stats" id="overview-stats"></div>
@@ -1164,6 +1165,8 @@
                   <option value="discord">Discord</option>
                   <option value="telegram">Telegram</option>
                   <option value="email">Gmail (Email)</option>
+                  <option value="outlook">Outlook (Microsoft 365)</option>
+                  <option value="whatsapp">WhatsApp</option>
                   <option value="webhook">Webhook genérico</option>
                 </select>
 
@@ -1184,8 +1187,26 @@
                 </div>
 
 
-                <label for="message">Mensagem</label>
+                <div id="group-whatsapp-template" class="field-group">
+                  <label for="template-name">
+                    Nome do template
+                    <span class="badge">obrigatório fora de uma conversa ativa</span>
+                  </label>
+                  <input type="text" id="template-name" placeholder="ex: payment_approved">
+                  <p class="hint">Mensagens que a empresa inicia (alertas, avisos) exigem um template pré-aprovado pela Meta — não é possível mandar texto livre fora de uma janela de conversa de 24h.</p>
+
+                  <label for="template-params">
+                    Parâmetros do template
+                    <span class="badge">opcional</span>
+                  </label>
+                  <input type="text" id="template-params" placeholder="João, 149,90 (separados por vírgula, na ordem do template)">
+                  <p class="hint">Preenchem as variáveis {{1}}, {{2}}... do template, na ordem. Deixe em branco se o template não tiver variáveis.</p>
+                </div>
+
+
+                <label for="message" id="message-label">Mensagem</label>
                 <textarea id="message" placeholder="Escreva a mensagem aqui..."></textarea>
+                <p class="hint" id="message-hint"></p>
 
 
                 <label>
@@ -1240,7 +1261,9 @@
                 <option value="">Todos os canais</option>
                 <option value="discord">Discord</option>
                 <option value="telegram">Telegram</option>
-                <option value="email">Email</option>
+                <option value="email">Email (Gmail)</option>
+                <option value="outlook">Outlook</option>
+                <option value="whatsapp">WhatsApp</option>
                 <option value="webhook">Webhook</option>
               </select>
 
@@ -1276,7 +1299,8 @@
 
             <div class="welcome">
               <h1>Prometheus</h1>
-              <p>Status técnico do sistema. Os painéis detalhados (contadores, séries temporais) ficam disponíveis nos links avançados abaixo, voltados para quem cuida da parte técnica.</p>
+              <p>Status técnico do sistema. Os painéis detalhados (contadores, séries temporais) ficam disponíveis nos
+                links avançados abaixo, voltados para quem cuida da parte técnica.</p>
             </div>
 
             <div class="stats" id="health-stats"></div>
@@ -1284,7 +1308,8 @@
             <div class="panel">
               <div class="panel-header">
                 <div class="panel-title">Painéis técnicos avançados</div>
-                <div class="panel-description">Contadores, histogramas de latência e séries temporais — para times de engenharia.</div>
+                <div class="panel-description">Contadores, histogramas de latência e séries temporais — para times de
+                  engenharia.</div>
               </div>
 
               <div class="advanced-links">
@@ -1403,6 +1428,11 @@
     const targetInput = document.getElementById("target");
     const targetHint = document.getElementById("target-hint");
     const subjectGroup = document.getElementById("group-subject");
+    const whatsappTemplateGroup = document.getElementById("group-whatsapp-template");
+    const templateNameInput = document.getElementById("template-name");
+    const templateParamsInput = document.getElementById("template-params");
+    const messageLabel = document.getElementById("message-label");
+    const messageHint = document.getElementById("message-hint");
     const form = document.getElementById("form");
     const result = document.getElementById("result");
     const submitBtn = document.getElementById("submit-btn");
@@ -1411,6 +1441,8 @@
       discord: "URL do webhook do Discord (ou deixe em branco para usar DEFAULT_DISCORD_TARGET do .env)",
       telegram: "Chat ID do Telegram (ou deixe em branco para usar DEFAULT_TELEGRAM_TARGET do .env)",
       email: "E-mail do destinatário (ou deixe em branco para usar DEFAULT_EMAIL_TARGET do .env)",
+      outlook: "E-mail do destinatário (ou deixe em branco para usar DEFAULT_OUTLOOK_TARGET do .env)",
+      whatsapp: "Telefone com DDI (ex: +55 11 99999-9999), ou deixe em branco para usar DEFAULT_WHATSAPP_TARGET do .env",
       webhook: "URL de destino (obrigatório para este canal)"
     };
 
@@ -1418,7 +1450,14 @@
       const channel = channelSelect.value;
       targetGroup.classList.add("active");
       targetHint.textContent = hints[channel];
-      subjectGroup.classList.toggle("active", channel === "email");
+      subjectGroup.classList.toggle("active", channel === "email" || channel === "outlook");
+
+      const isWhatsApp = channel === "whatsapp";
+      whatsappTemplateGroup.classList.toggle("active", isWhatsApp);
+      messageLabel.textContent = isWhatsApp ? "Mensagem (texto livre)" : "Mensagem";
+      messageHint.textContent = isWhatsApp
+        ? "Só funciona dentro de uma conversa ativa (últimas 24h). Pra mandar um alerta sem essa janela, preencha o template acima."
+        : "";
     }
 
     channelSelect.addEventListener("change", updateFields);
@@ -1573,15 +1612,23 @@
       const target = targetInput.value.trim();
       const subject = document.getElementById("subject").value.trim();
       const message = document.getElementById("message").value.trim();
+      const templateName = templateNameInput.value.trim();
+      const templateParamsRaw = templateParamsInput.value.trim();
 
-      if (!message && attachments.length === 0) {
-        showResult("error", "Escreva uma mensagem ou anexe ao menos um arquivo antes de enviar.");
+      if (!message && attachments.length === 0 && !templateName) {
+        showResult("error", "Escreva uma mensagem, informe um template ou anexe ao menos um arquivo antes de enviar.");
         return;
       }
 
       const body = { channel, message };
       if (target) body.target = target;
-      if (channel === "email" && subject) body.subject = subject;
+      if ((channel === "email" || channel === "outlook") && subject) body.subject = subject;
+      if (channel === "whatsapp" && templateName) {
+        body.template_name = templateName;
+        if (templateParamsRaw) {
+          body.template_params = templateParamsRaw.split(",").map(p => p.trim());
+        }
+      }
       if (attachments.length > 0) {
         body.attachments = attachments.map(a => ({
           filename: a.filename,
@@ -1607,6 +1654,8 @@
         } else {
           showResult("success", `Enfileirado! id: ${data.id} — status: ${statusLabel(data.status)}. Veja o Dashboard para acompanhar a entrega.`);
           document.getElementById("message").value = "";
+          templateNameInput.value = "";
+          templateParamsInput.value = "";
           resetAttachments();
         }
       } catch (err) {
