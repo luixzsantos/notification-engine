@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"notification-engine/internal/domain"
+	"notification-engine/internal/security"
 )
 
 // Sender é reexportado aqui por conveniência para quem importa só o pacote channel.
@@ -27,17 +28,20 @@ type GmailConfig struct {
 }
 
 // NewRegistry monta o registry com todos os conectores de canal disponíveis.
-func NewRegistry(httpTimeout time.Duration, telegramBotToken string, gmailCfg GmailConfig) *Registry {
-	client := &http.Client{Timeout: httpTimeout}
+// Discord e Webhook (os dois que fazem requisição HTTP a uma URL fornecida
+// pelo cliente da API) usam um http.Client "hardened" contra SSRF — recusa
+// conectar em IPs privados/loopback/link-local, a menos que
+// allowPrivateNetworks esteja ligado (uso local/dev apenas).
+func NewRegistry(httpTimeout time.Duration, telegramBotToken string, gmailCfg GmailConfig, allowPrivateNetworks bool) *Registry {
+	safeClient := security.SafeHTTPClient(httpTimeout, allowPrivateNetworks)
+	plainClient := &http.Client{Timeout: httpTimeout}
 
-	registry := &Registry{
-		senders: make(map[domain.ChannelType]Sender),
-	}
+	registry := NewEmptyRegistry()
 
-	registry.register(NewWebhookSender(client))
-	registry.register(NewDiscordSender(client))
-	registry.register(NewTelegramSender(client, telegramBotToken))
-	registry.register(NewGmailSender(
+	registry.Register(NewWebhookSender(safeClient))
+	registry.Register(NewDiscordSender(safeClient))
+	registry.Register(NewTelegramSender(plainClient, telegramBotToken))
+	registry.Register(NewGmailSender(
 		gmailCfg.Host,
 		gmailCfg.Port,
 		gmailCfg.Username,
@@ -48,7 +52,14 @@ func NewRegistry(httpTimeout time.Duration, telegramBotToken string, gmailCfg Gm
 	return registry
 }
 
-func (r *Registry) register(s Sender) {
+// NewEmptyRegistry cria um Registry sem nenhum conector — usado em testes
+// para registrar apenas os senders (reais ou fake) que o cenário precisa.
+func NewEmptyRegistry() *Registry {
+	return &Registry{senders: make(map[domain.ChannelType]Sender)}
+}
+
+// Register associa um Sender ao canal que ele implementa (Sender.Channel()).
+func (r *Registry) Register(s Sender) {
 	r.senders[s.Channel()] = s
 }
 

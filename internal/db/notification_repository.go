@@ -9,8 +9,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lib/pq"
+
 	"notification-engine/internal/domain"
 )
+
+// pqUniqueViolation é o código de erro do PostgreSQL para violação de
+// constraint UNIQUE (usado para detectar Idempotency-Key duplicado).
+const pqUniqueViolation = "23505"
 
 // NotificationRepository implementa domain.Repository sobre PostgreSQL,
 // usando database/sql + SQL puro (sem ORM).
@@ -23,7 +29,7 @@ func NewNotificationRepository(conn *sql.DB) *NotificationRepository {
 }
 
 const selectColumns = `
-	id, channel, target, subject, message, payload, headers, attachments,
+	id, idempotency_key, channel, target, subject, message, payload, headers, attachments,
 	status, attempts, max_attempts, last_error, next_retry_at,
 	created_at, updated_at`
 
@@ -45,15 +51,19 @@ func (r *NotificationRepository) Create(ctx context.Context, n *domain.Notificat
 
 	_, err = r.conn.ExecContext(ctx, `
 		INSERT INTO notifications
-			(id, channel, target, subject, message, payload, headers, attachments,
+			(id, idempotency_key, channel, target, subject, message, payload, headers, attachments,
 			 status, attempts, max_attempts, last_error, next_retry_at,
 			 created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
-		n.ID, n.Channel, n.Target, n.Subject, n.Message, payload, headers, attachments,
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+		n.ID, n.IdempotencyKey, n.Channel, n.Target, n.Subject, n.Message, payload, headers, attachments,
 		n.Status, n.Attempts, n.MaxAttempts, n.LastError, n.NextRetryAt,
 		n.CreatedAt, n.UpdatedAt,
 	)
 	if err != nil {
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) && pqErr.Code == pqUniqueViolation {
+			return domain.ErrDuplicateIdempotencyKey
+		}
 		return fmt.Errorf("db: falha ao inserir notificação: %w", err)
 	}
 
@@ -94,6 +104,23 @@ func (r *NotificationRepository) FindByID(ctx context.Context, id string) (*doma
 	}
 	if err != nil {
 		return nil, fmt.Errorf("db: falha ao buscar notificação %s: %w", id, err)
+	}
+
+	return n, nil
+}
+
+// FindByIdempotencyKey busca a notificação já criada com essa chave, usada
+// pelo service para devolver o resultado original em vez de reprocessar
+// uma requisição repetida (retry de rede do lado do cliente, por exemplo).
+func (r *NotificationRepository) FindByIdempotencyKey(ctx context.Context, key string) (*domain.Notification, error) {
+	row := r.conn.QueryRowContext(ctx, "SELECT "+selectColumns+" FROM notifications WHERE idempotency_key = $1", key)
+
+	n, err := scanNotification(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, domain.ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("db: falha ao buscar notificação por idempotency_key: %w", err)
 	}
 
 	return n, nil
@@ -216,7 +243,7 @@ func scanNotification(r row) (*domain.Notification, error) {
 	var nextRetryAt sql.NullTime
 
 	err := r.Scan(
-		&n.ID, &n.Channel, &n.Target, &n.Subject, &n.Message, &payload, &headers, &attachments,
+		&n.ID, &n.IdempotencyKey, &n.Channel, &n.Target, &n.Subject, &n.Message, &payload, &headers, &attachments,
 		&n.Status, &n.Attempts, &n.MaxAttempts, &n.LastError, &nextRetryAt,
 		&n.CreatedAt, &n.UpdatedAt,
 	)

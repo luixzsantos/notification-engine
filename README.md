@@ -19,7 +19,12 @@ Serviço assíncrono de alto desempenho para disparo de notificações multicana
 - [Métricas (Prometheus)](#métricas-prometheus)
 - [Bot do Telegram](#bot-do-telegram)
 - [Dashboard](#dashboard)
-- [Upgrade V1 → V2](#upgrade-v1--v2)
+- [Segurança](#segurança)
+- [Idempotência](#idempotência)
+- [Health checks](#health-checks)
+- [Testes e CI](#testes-e-ci)
+- [Arquitetura e decisões técnicas](#arquitetura-e-decisões-técnicas)
+- [Upgrade V1 → V2 → V3](#upgrade-v1--v2--v3)
 - [Licença](#licença)
 
 ---
@@ -167,6 +172,10 @@ Veja todos os detalhes em [`.env.example`](.env.example). Resumo:
 | `RETRY_MAX_BACKOFF_SECONDS` | Opcional | Teto do backoff exponencial (default: `3600`) |
 | `RATE_LIMIT_*_RPS` | Opcional | Requisições/segundo por canal (default: 10/20/50/5) |
 | `METRICS_ENABLED` / `METRICS_PORT` | Opcional | Liga `/metrics` na API e no worker (porta separada) |
+| `API_KEY` | Opcional (recomendado em produção) | Exige `Authorization: Bearer <chave>` ou `X-API-Key` em `/api/v1/*`. Vazio = sem autenticação |
+| `CORS_ALLOWED_ORIGINS` | Opcional | Origens liberadas para chamar a API do navegador, separadas por vírgula. `*` (default) libera qualquer uma |
+| `TELEGRAM_ALLOWED_CHAT_IDS` | Opcional (recomendado com o bot ligado) | `chat_id`s autorizados a usar `/retry` e `/status`, separados por vírgula. Vazio = qualquer chat |
+| `ALLOW_PRIVATE_NETWORK_TARGETS` | Opcional | `true` desliga a proteção contra SSRF em webhook/discord. **Nunca em produção** |
 
 ---
 
@@ -199,6 +208,23 @@ Veja todos os detalhes em [`.env.example`](.env.example). Resumo:
 {"id": "441b54a5-...", "status": "pending", "message": "notificação aceita e enfileirada para processamento"}
 ```
 
+**Com Idempotency-Key** (evita duplicar a entrega se o cliente reenviar a mesma requisição, ex: após um timeout):
+```bash
+curl -X POST http://localhost:8080/api/v1/notifications \
+  -H "Idempotency-Key: pedido-12345" \
+  -H "Content-Type: application/json" \
+  -d '{"channel":"webhook","target":"https://example.com/hook","message":"Olá!"}'
+```
+Reenviar a mesma requisição com a mesma `Idempotency-Key` devolve a notificação já criada, sem enfileirar de novo.
+
+**Com API Key** (se `API_KEY` estiver configurada):
+```bash
+curl -X POST http://localhost:8080/api/v1/notifications \
+  -H "Authorization: Bearer sua-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{"channel":"webhook","target":"https://example.com/hook","message":"Olá!"}'
+```
+
 ### `POST /api/v1/notifications/bulk`
 
 Aceita um array de até 500 notificações no mesmo formato acima. Retorna um array com o resultado de cada item (`id`+`status`, ou `error` quando rejeitado na validação):
@@ -226,9 +252,9 @@ Reenfileira manualmente uma notificação parada em `retrying` ou `dlq`.
 
 Contagem total de notificações por status e por canal — usado pelo dashboard.
 
-### `GET /health`
+### `GET /health` / `GET /health/live` / `GET /health/ready`
 
-Healthcheck simples, retorna `{"status": "ok"}`.
+Veja a seção [Health checks](#health-checks).
 
 ---
 
@@ -280,7 +306,54 @@ Abra `main.html` (com a API rodando) e clique em **dashboard** na barra lateral 
 
 ---
 
-## Upgrade V1 → V2
+## Segurança
+
+- **Autenticação da API** (`API_KEY`): quando configurada, todo endpoint de negócio (`/api/v1/*`) exige `Authorization: Bearer <chave>` ou `X-API-Key: <chave>`. `/health*` e `/metrics` continuam sempre abertos. Vazio (default) desativa a autenticação — adequado só para uso local.
+- **CORS configurável** (`CORS_ALLOWED_ORIGINS`): lista de origens separadas por vírgula. `*` (default) libera qualquer uma; em produção, configure com as origens reais do seu frontend.
+- **Proteção contra SSRF**: os canais `webhook` e `discord` fazem uma requisição HTTP para uma URL fornecida pelo cliente. A engine bloqueia por padrão qualquer destino que resolva para um IP privado, loopback, link-local (o que cobre o endereço de metadados de nuvem `169.254.169.254`) — tanto na criação quanto no momento do envio (fecha a brecha de DNS rebinding). O canal `discord` também exige que o host seja `discord.com`/`discordapp.com`. Veja [ARCHITECTURE.md](ARCHITECTURE.md#proteção-contra-ssrf-server-side-request-forgery) para detalhes.
+- **Autorização do bot do Telegram** (`TELEGRAM_ALLOWED_CHAT_IDS`): restringe `/retry` e `/status` a uma lista de `chat_id`. Sem essa lista, qualquer um que descubra o bot pode usá-lo.
+
+---
+
+## Idempotência
+
+`POST /api/v1/notifications` aceita um header `Idempotency-Key` opcional. Se você reenviar a mesma requisição com a mesma chave (ex: porque não teve certeza se a primeira tentativa chegou), a API devolve a notificação já criada da primeira vez, em vez de criar uma duplicata e enfileirar de novo. A chave tem uma constraint `UNIQUE` no PostgreSQL — mesmo duas requisições concorrentes com a mesma chave resultam em uma única notificação.
+
+No `/bulk`, como não há um header por item, cada item do array pode incluir `"idempotency_key": "..."` diretamente no corpo.
+
+---
+
+## Health checks
+
+| Endpoint | Uso |
+|---|---|
+| `GET /health` (alias de `/health/live`) | **Liveness** — só confirma que o processo está de pé. Não verifica dependências. |
+| `GET /health/ready` | **Readiness** — verifica se PostgreSQL e Redis estão realmente alcançáveis. Retorna `503` se algum estiver fora, `200` se ambos OK. |
+
+Use `/health/live` para o orquestrador saber quando reiniciar o processo, e `/health/ready` para saber quando ele já pode receber tráfego.
+
+---
+
+## Testes e CI
+
+```bash
+go test ./...          # roda a suíte de testes unitários
+go test -race ./...    # com o detector de race conditions (recomendado dado o uso de goroutines)
+gofmt -l .              # confere formatação
+go vet ./...            # análise estática
+```
+
+Cobertura atual: `domain`, `retry` (backoff/jitter), `security` (proteção SSRF), `ratelimit`, `service` (idempotência, fallback de consistência, retry manual) e `worker` (dispatcher: sucesso, retry, DLQ, canal não registrado) têm testes unitários com fakes em memória — sem depender de Postgres/Redis reais. O pipeline (`.github/workflows/ci.yml`) roda tudo isso automaticamente a cada push/PR para `main`.
+
+---
+
+## Arquitetura e decisões técnicas
+
+Para o diagrama completo do fluxo e o *porquê* das decisões técnicas mais importantes — por que Redis Streams (e não Pub/Sub), como o Consumer Group evita processamento duplicado, quais são as garantias reais de entrega (at-least-once), como o backoff com jitter funciona, como a consistência entre PostgreSQL e Redis é mantida sem um Transactional Outbox completo, e os detalhes da proteção contra SSRF — veja **[ARCHITECTURE.md](ARCHITECTURE.md)**.
+
+---
+
+## Upgrade V1 → V2 → V3
 
 Se você estava usando a V1, consulte **[UPGRADE_V2_GUIDE.md](UPGRADE_V2_GUIDE.md)** para:
 
@@ -289,7 +362,7 @@ Se você estava usando a V1, consulte **[UPGRADE_V2_GUIDE.md](UPGRADE_V2_GUIDE.m
 - Documentação completa dos novos recursos (Bulk API, Retry manual, Dashboard, Bot, Métricas)
 - Troubleshooting e checklist de migração
 
-Para detalhes técnicos das mudanças, veja **[CHANGELOG_V2.md](CHANGELOG_V2.md)**.
+Para detalhes técnicos das mudanças da V2, veja **[CHANGELOG_V2.md](CHANGELOG_V2.md)**; para a rodada de testes/segurança/confiabilidade (V3), veja **[CHANGELOG_V3.md](CHANGELOG_V3.md)**.
 
 ---
 

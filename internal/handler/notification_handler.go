@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"notification-engine/internal/domain"
+	"notification-engine/internal/security"
 	"notification-engine/internal/service"
 )
 
@@ -54,6 +55,13 @@ func (h *NotificationHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer r.Body.Close()
+
+	// O header tem prioridade sobre um eventual idempotency_key vindo no
+	// corpo, mas ambos são aceitos (o corpo existe principalmente para o
+	// /bulk, que não tem como enviar um header por item).
+	if key := r.Header.Get("Idempotency-Key"); key != "" {
+		input.IdempotencyKey = key
+	}
 
 	notification, err := h.service.CreateNotification(r.Context(), input)
 	if err != nil {
@@ -170,7 +178,8 @@ func isValidationError(err error) bool {
 		errors.Is(err, domain.ErrEmptyTarget) ||
 		errors.Is(err, domain.ErrEmptyMessage) ||
 		errors.Is(err, domain.ErrTooManyAttachments) ||
-		errors.Is(err, domain.ErrAttachmentTooLarge)
+		errors.Is(err, domain.ErrAttachmentTooLarge) ||
+		errors.Is(err, security.ErrBlockedTarget)
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {

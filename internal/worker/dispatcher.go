@@ -63,23 +63,25 @@ func (d *Dispatcher) Handle(ctx context.Context, n *domain.Notification) error {
 // direto para a DLQ (usado para erros que retry não resolveria, como canal
 // não configurado).
 func (d *Dispatcher) fail(ctx context.Context, n *domain.Notification, cause error, permanent bool) {
-	n.Attempts++
-	n.LastError = cause.Error()
-	n.UpdatedAt = time.Now().UTC()
-
-	if permanent || n.Attempts >= n.MaxAttempts {
+	if permanent {
+		n.Attempts++
+		n.LastError = cause.Error()
+		n.UpdatedAt = time.Now().UTC()
 		n.Status = domain.StatusDLQ
 		n.NextRetryAt = nil
 		metrics.RecordDLQ(string(n.Channel))
-		log.Printf("[dispatcher] DLQ id=%s channel=%s tentativas=%d/%d erro=%v",
-			n.ID, n.Channel, n.Attempts, n.MaxAttempts, cause)
+		log.Printf("[dispatcher] DLQ (falha permanente) id=%s channel=%s erro=%v", n.ID, n.Channel, cause)
 	} else {
-		next := time.Now().UTC().Add(retry.NextBackoff(n.Attempts, d.MaxBackoffSeconds))
-		n.Status = domain.StatusRetrying
-		n.NextRetryAt = &next
-		metrics.RecordRetry(string(n.Channel))
-		log.Printf("[dispatcher] retry agendado id=%s channel=%s tentativa=%d/%d em=%s erro=%v",
-			n.ID, n.Channel, n.Attempts, n.MaxAttempts, next.Format(time.RFC3339), cause)
+		retry.ApplyFailure(n, cause, d.MaxBackoffSeconds)
+		if n.Status == domain.StatusDLQ {
+			metrics.RecordDLQ(string(n.Channel))
+			log.Printf("[dispatcher] DLQ id=%s channel=%s tentativas=%d/%d erro=%v",
+				n.ID, n.Channel, n.Attempts, n.MaxAttempts, cause)
+		} else {
+			metrics.RecordRetry(string(n.Channel))
+			log.Printf("[dispatcher] retry agendado id=%s channel=%s tentativa=%d/%d em=%s erro=%v",
+				n.ID, n.Channel, n.Attempts, n.MaxAttempts, n.NextRetryAt.Format(time.RFC3339), cause)
+		}
 	}
 
 	if err := d.Repo.Update(ctx, n); err != nil {

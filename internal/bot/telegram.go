@@ -23,18 +23,37 @@ const telegramAPIBase = "https://api.telegram.org/bot"
 // TelegramBot escuta comandos administrativos e responde consultando o
 // mesmo NotificationService usado pela API HTTP.
 type TelegramBot struct {
-	token   string
-	service *service.NotificationService
-	client  *http.Client
-	offset  int
+	token       string
+	service     *service.NotificationService
+	client      *http.Client
+	offset      int
+	allowedChat map[int64]bool // vazio/nil = qualquer chat pode usar o bot
 }
 
-func New(token string, svc *service.NotificationService) *TelegramBot {
-	return &TelegramBot{
-		token:   token,
-		service: svc,
-		client:  &http.Client{Timeout: 35 * time.Second},
+// New cria o bot. allowedChatIDs restringe quem pode executar comandos
+// administrativos (/retry, /status); uma lista vazia desativa a restrição
+// (qualquer um que descubra o bot pode usá-lo — recomendado configurar em
+// produção).
+func New(token string, svc *service.NotificationService, allowedChatIDs []int64) *TelegramBot {
+	allowed := make(map[int64]bool, len(allowedChatIDs))
+	for _, id := range allowedChatIDs {
+		allowed[id] = true
 	}
+
+	return &TelegramBot{
+		token:       token,
+		service:     svc,
+		client:      &http.Client{Timeout: 35 * time.Second},
+		allowedChat: allowed,
+	}
+}
+
+// isAuthorized confere se o chat pode executar comandos administrativos.
+func (b *TelegramBot) isAuthorized(chatID int64) bool {
+	if len(b.allowedChat) == 0 {
+		return true
+	}
+	return b.allowedChat[chatID]
 }
 
 // Run entra em loop de long polling (getUpdates) até o contexto ser
@@ -116,10 +135,17 @@ func (b *TelegramBot) handleMessage(ctx context.Context, msg message) {
 	}
 
 	switch fields[0] {
-	case "/status":
-		b.handleStatus(ctx, msg.Chat.ID, fields)
-	case "/retry":
-		b.handleRetry(ctx, msg.Chat.ID, fields)
+	case "/status", "/retry":
+		if !b.isAuthorized(msg.Chat.ID) {
+			log.Printf("[bot] comando %s negado para chat_id não autorizado: %d", fields[0], msg.Chat.ID)
+			b.reply(ctx, msg.Chat.ID, "Você não está autorizado a usar este comando.")
+			return
+		}
+		if fields[0] == "/status" {
+			b.handleStatus(ctx, msg.Chat.ID, fields)
+		} else {
+			b.handleRetry(ctx, msg.Chat.ID, fields)
+		}
 	case "/start", "/help":
 		b.reply(ctx, msg.Chat.ID, "Comandos disponíveis:\n/status <id> — consulta o estado de uma notificação\n/retry <id> — reenfileira uma notificação em retry ou DLQ")
 	}

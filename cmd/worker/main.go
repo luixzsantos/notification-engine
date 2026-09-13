@@ -65,7 +65,11 @@ func main() {
 			AppPassword: cfg.GmailAppPassword,
 			FromName:    cfg.GmailFromName,
 		},
+		cfg.AllowPrivateNetworkTargets,
 	)
+	if cfg.AllowPrivateNetworkTargets {
+		log.Println("[worker] AVISO: ALLOW_PRIVATE_NETWORK_TARGETS=true — proteção contra SSRF desligada (não use em produção)")
+	}
 
 	rps := map[domain.ChannelType]float64{
 		domain.ChannelDiscord:  cfg.RateLimitDiscordRPS,
@@ -105,8 +109,14 @@ func main() {
 
 	if cfg.TelegramBotEnabled && cfg.TelegramBotToken != "" {
 		defaultTargets := map[domain.ChannelType]string{} // bot só consulta/reenfileira, não precisa de defaults
-		svc := service.NewNotificationService(producer, repo, defaultTargets, cfg.RetryMaxAttempts)
-		telegramBot := bot.New(cfg.TelegramBotToken, svc)
+		svc := service.NewNotificationService(
+			producer, repo, defaultTargets,
+			cfg.RetryMaxAttempts, cfg.RetryMaxBackoffSeconds, cfg.AllowPrivateNetworkTargets,
+		)
+		if len(cfg.TelegramAllowedChatIDs) == 0 {
+			log.Println("[worker] AVISO: TELEGRAM_ALLOWED_CHAT_IDS não configurado — qualquer chat pode executar /retry e /status")
+		}
+		telegramBot := bot.New(cfg.TelegramBotToken, svc, cfg.TelegramAllowedChatIDs)
 		go telegramBot.Run(ctx)
 	}
 

@@ -9,6 +9,8 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"notification-engine/internal/domain"
 )
@@ -36,6 +38,10 @@ type discordPayload struct {
 // n.Attachments está presente, envia como multipart/form-data (files[n] +
 // payload_json), do contrário usa o corpo JSON simples.
 func (s *DiscordSender) Send(ctx context.Context, n *domain.Notification) error {
+	if err := validateDiscordHost(n.Target); err != nil {
+		return err
+	}
+
 	var req *http.Request
 	var err error
 
@@ -57,6 +63,26 @@ func (s *DiscordSender) Send(ctx context.Context, n *domain.Notification) error 
 	if resp.StatusCode >= 300 {
 		respBody, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("discord: resposta com status %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	return nil
+}
+
+// validateDiscordHost restringe o destino a hosts realmente pertencentes ao
+// Discord (discord.com/discordapp.com). Além de mitigar SSRF (que já é
+// tratado de forma genérica pelo http.Client hardened do registry), isso
+// impede que o canal "discord" seja usado como um proxy genérico para
+// disparar requisições HTTP a qualquer outro servidor público.
+func validateDiscordHost(target string) error {
+	u, err := url.Parse(target)
+	if err != nil {
+		return fmt.Errorf("discord: URL de destino inválida: %w", err)
+	}
+
+	host := strings.ToLower(u.Hostname())
+	if host != "discord.com" && !strings.HasSuffix(host, ".discord.com") &&
+		host != "discordapp.com" && !strings.HasSuffix(host, ".discordapp.com") {
+		return fmt.Errorf("discord: destino deve ser um webhook em discord.com ou discordapp.com, recebido: %s", host)
 	}
 
 	return nil

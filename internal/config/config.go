@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -55,6 +56,27 @@ type Config struct {
 
 	MetricsEnabled bool
 	MetricsPort    string
+
+	// APIKey, quando definido, exige o header "Authorization: Bearer
+	// <chave>" ou "X-API-Key: <chave>" em todos os endpoints de negócio da
+	// API (/api/v1/*). Vazio (default) desativa a autenticação — adequado
+	// só para uso local/dev.
+	APIKey string
+
+	// CORSAllowedOrigins restringe quais origens podem chamar a API a
+	// partir do navegador. ["*"] (default) libera qualquer origem.
+	CORSAllowedOrigins []string
+
+	// TelegramAllowedChatIDs restringe quem pode executar comandos
+	// administrativos (/retry, /status) no bot do Telegram. Vazio (default)
+	// permite qualquer chat — recomendado configurar em produção.
+	TelegramAllowedChatIDs []int64
+
+	// AllowPrivateNetworkTargets desliga a proteção contra SSRF (bloqueio de
+	// IPs privados/loopback/link-local como destino de webhook/discord).
+	// Existe só para permitir testar contra serviços internos em
+	// desenvolvimento — NUNCA deveria ficar ligado em produção.
+	AllowPrivateNetworkTargets bool
 }
 
 // Load lê o arquivo .env (se existir) e as variáveis de ambiente do sistema,
@@ -110,6 +132,11 @@ func Load() *Config {
 
 		MetricsEnabled: getEnvAsBool("METRICS_ENABLED", true),
 		MetricsPort:    getEnv("METRICS_PORT", "9091"),
+
+		APIKey:                     getEnv("API_KEY", ""),
+		CORSAllowedOrigins:         getEnvAsStringList("CORS_ALLOWED_ORIGINS", []string{"*"}),
+		TelegramAllowedChatIDs:     getEnvAsInt64List("TELEGRAM_ALLOWED_CHAT_IDS", nil),
+		AllowPrivateNetworkTargets: getEnvAsBool("ALLOW_PRIVATE_NETWORK_TARGETS", false),
 	}
 }
 
@@ -144,6 +171,49 @@ func getEnvAsFloat(key string, fallback float64) float64 {
 		return fallback
 	}
 	return value
+}
+
+// getEnvAsStringList lê uma lista separada por vírgulas (ex: "a,b,c"),
+// removendo espaços em branco de cada item.
+func getEnvAsStringList(key string, fallback []string) []string {
+	valueStr := getEnv(key, "")
+	if valueStr == "" {
+		return fallback
+	}
+
+	parts := strings.Split(valueStr, ",")
+	list := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if trimmed := strings.TrimSpace(p); trimmed != "" {
+			list = append(list, trimmed)
+		}
+	}
+	return list
+}
+
+// getEnvAsInt64List lê uma lista de inteiros separados por vírgulas (ex:
+// "111,222,333"), ignorando itens que não sejam números válidos.
+func getEnvAsInt64List(key string, fallback []int64) []int64 {
+	valueStr := getEnv(key, "")
+	if valueStr == "" {
+		return fallback
+	}
+
+	parts := strings.Split(valueStr, ",")
+	list := make([]int64, 0, len(parts))
+	for _, p := range parts {
+		trimmed := strings.TrimSpace(p)
+		if trimmed == "" {
+			continue
+		}
+		v, err := strconv.ParseInt(trimmed, 10, 64)
+		if err != nil {
+			log.Printf("[config] valor inválido em %s (%q ignorado): %v", key, trimmed, err)
+			continue
+		}
+		list = append(list, v)
+	}
+	return list
 }
 
 func getEnvAsBool(key string, fallback bool) bool {
