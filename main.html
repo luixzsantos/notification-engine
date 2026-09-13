@@ -9,31 +9,33 @@
 
   <style>
     :root {
-      --bg: #1e1f22;
-      --sidebar: #2b2d31;
-      --panel: #313338;
-      --input: #383a40;
-      --border: #1b1c1f;
+      --bg: #0c0c0e;
+      --sidebar: #101012;
+      --panel: #0f0f11;
+      --card: #17171a;
+      --input: #1a1a1e;
+      --border: #232327;
 
-      --text: #dbdee1;
-      --text-bright: #f2f3f5;
-      --muted: #949ba4;
-      --muted-dark: #6d7178;
+      --text: #d4d4d8;
+      --text-bright: #f7f7f8;
+      --muted: #8f8f97;
+      --muted-dark: #5c5c63;
 
-      --hover: #35373c;
-      --active: #404249;
+      --hover: #1c1c20;
+      --active: #202024;
 
-      --accent: #5865f2;
+      --accent: #ec4899;
+      --accent-hover: #db2777;
+      --accent-soft: rgba(236, 72, 153, .14);
 
-      --success-bg: #2f3237;
-      --success-border: #666b73;
-      --error-bg: #2f3033;
-      --error-border: #73767d;
-
-      --pending: #6d7178;
-      --success: #4caf7d;
-      --retrying: #d9a441;
-      --dlq: #d9534f;
+      --success: #22c55e;
+      --success-bg: rgba(34, 197, 94, .13);
+      --warning: #f59e0b;
+      --warning-bg: rgba(245, 158, 11, .13);
+      --danger: #ef4444;
+      --danger-bg: rgba(239, 68, 68, .13);
+      --pending: #9a9aa2;
+      --pending-bg: rgba(154, 154, 162, .14);
     }
 
     * {
@@ -64,6 +66,10 @@
       font-family: inherit;
     }
 
+    a {
+      color: inherit;
+    }
+
     /* =========================
        APP LAYOUT
     ========================= */
@@ -85,8 +91,8 @@
       align-items: center;
       gap: 10px;
 
-      height: 52px;
-      min-height: 52px;
+      height: 54px;
+      min-height: 54px;
       padding: 0 14px;
 
       background: var(--sidebar);
@@ -118,7 +124,7 @@
       display: none;
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, .5);
+      background: rgba(0, 0, 0, .55);
       z-index: 15;
     }
 
@@ -127,90 +133,78 @@
     ========================= */
 
     .sidebar {
-      width: 250px;
-      min-width: 250px;
+      width: 240px;
+      min-width: 240px;
       background: var(--sidebar);
       border-right: 1px solid var(--border);
 
       display: flex;
       flex-direction: column;
-      overflow-y: auto;
     }
 
     .sidebar-header {
-      height: 52px;
-      min-height: 52px;
-      padding: 0 16px;
+      height: 54px;
+      min-height: 54px;
+      padding: 0 18px;
 
       display: flex;
       align-items: center;
+      gap: 10px;
 
-      border-bottom: 1px solid rgba(0, 0, 0, .18);
-
-      font-size: 15px;
-      font-weight: 700;
-      color: var(--text-bright);
+      border-bottom: 1px solid var(--border);
     }
 
-    .engine-mark {
+    .brand-mark {
       width: 26px;
       height: 26px;
-      margin-right: 10px;
       flex-shrink: 0;
 
       display: flex;
       align-items: center;
       justify-content: center;
 
-      border-radius: 6px;
+      border-radius: 7px;
       background: var(--accent);
 
       font-size: 12px;
       font-weight: 800;
       color: #fff;
-      letter-spacing: -.02em;
     }
 
-    .sidebar-title {
+    .brand-name {
+      color: var(--text-bright);
+      font-size: 14px;
+      font-weight: 700;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
-    .sidebar-section {
-      padding: 18px 10px 6px;
+    .nav {
+      padding: 14px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
     }
 
-    .section-title {
-      padding: 0 8px;
-      margin-bottom: 6px;
-
-      color: var(--muted);
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: .04em;
-    }
-
-    .channel {
+    .nav-item {
       width: 100%;
-      min-height: 36px;
+      min-height: 38px;
 
-      padding: 8px 9px;
+      padding: 8px 12px;
 
       display: flex;
       align-items: center;
-      gap: 9px;
+      gap: 10px;
 
-      border-radius: 5px;
+      border-radius: 6px;
 
       color: var(--muted);
       font-size: 13.5px;
+      font-weight: 500;
 
       cursor: pointer;
-      transition:
-        background .12s ease,
-        color .12s ease;
+      transition: background .12s ease, color .12s ease;
 
       background: none;
       border: none;
@@ -219,35 +213,67 @@
       text-decoration: none;
     }
 
-    .channel:hover {
+    .nav-item:hover {
       background: var(--hover);
       color: var(--text);
     }
 
-    .channel.active {
-      background: var(--active);
-      color: var(--text-bright);
+    .nav-item.active {
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-weight: 600;
     }
 
-    .channel-icon {
+    .nav-icon {
       width: 18px;
       flex-shrink: 0;
       text-align: center;
-      color: var(--muted-dark);
       font-size: 15px;
     }
 
-    .channel.active .channel-icon {
-      color: var(--text);
+    .nav-divider {
+      margin: 8px 10px;
+      border-top: 1px solid var(--border);
     }
 
-    .channel.static {
-      cursor: default;
+    .sidebar-spacer {
+      flex: 1;
     }
 
-    .channel.static:hover {
-      background: none;
+    .sidebar-footer {
+      padding: 14px 18px 16px;
+      border-top: 1px solid var(--border);
+    }
+
+    .system-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
       color: var(--muted);
+      font-size: 12px;
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      flex-shrink: 0;
+      border-radius: 50%;
+      background: var(--muted-dark);
+    }
+
+    .status-dot.online {
+      background: var(--success);
+    }
+
+    .status-dot.offline {
+      background: var(--danger);
+    }
+
+    .sidebar-footer .api-line {
+      margin-top: 6px;
+      color: var(--muted-dark);
+      font-size: 10.5px;
+      font-family: ui-monospace, monospace;
     }
 
     /* =========================
@@ -268,25 +294,17 @@
        HEADER
     ========================= */
 
-    .chat-header {
-      height: 52px;
-      min-height: 52px;
+    .page-header {
+      height: 54px;
+      min-height: 54px;
 
       display: flex;
       align-items: center;
 
-      padding: 0 20px;
+      padding: 0 24px;
 
       border-bottom: 1px solid var(--border);
       background: var(--panel);
-    }
-
-    .header-icon {
-      margin-right: 9px;
-      flex-shrink: 0;
-
-      color: var(--muted);
-      font-size: 17px;
     }
 
     .header-title {
@@ -298,11 +316,9 @@
 
     .header-divider {
       width: 1px;
-      height: 20px;
-
+      height: 18px;
       margin: 0 12px;
-
-      background: #45474d;
+      background: var(--border);
       flex-shrink: 0;
     }
 
@@ -325,12 +341,12 @@
       gap: 6px;
 
       color: var(--muted);
-      font-size: 12px;
+      font-size: 12.5px;
       text-decoration: none;
       white-space: nowrap;
 
-      padding: 6px 10px;
-      border-radius: 5px;
+      padding: 6px 12px;
+      border-radius: 6px;
       border: 1px solid var(--border);
 
       transition: color .12s ease, border-color .12s ease;
@@ -338,7 +354,7 @@
 
     .header-link:hover {
       color: var(--text-bright);
-      border-color: #46484e;
+      border-color: #3a3a40;
     }
 
     /* =========================
@@ -354,7 +370,7 @@
       justify-content: center;
 
       overflow-y: auto;
-      padding: 28px;
+      padding: 30px;
     }
 
     .view {
@@ -370,25 +386,22 @@
 
     .content-inner {
       width: 100%;
-      max-width: 720px;
+      max-width: 700px;
       min-width: 0;
-
       padding-bottom: 30px;
     }
 
     .content-inner.wide {
-      max-width: 1100px;
+      max-width: 1120px;
     }
 
     .welcome {
-      margin-bottom: 26px;
+      margin-bottom: 24px;
     }
 
     .welcome h1 {
       margin: 0 0 6px;
-
       color: var(--text-bright);
-
       font-size: 22px;
       line-height: 1.25;
       font-weight: 700;
@@ -396,39 +409,35 @@
 
     .welcome p {
       margin: 0;
-
       color: var(--muted);
-
       font-size: 14px;
       line-height: 1.5;
     }
 
     /* =========================
-       FORM CARD
+       PANEL / CARD
     ========================= */
 
-    .form-card {
-      padding: 22px;
-
-      background: #2b2d31;
-
-      border: 1px solid #1b1c1f;
-      border-radius: 8px;
+    .panel {
+      padding: 20px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin-bottom: 20px;
     }
 
-    .form-header {
-      margin-bottom: 18px;
+    .panel-header {
+      margin-bottom: 16px;
     }
 
-    .form-header-title {
+    .panel-title {
       color: var(--text-bright);
-      font-size: 15px;
+      font-size: 14px;
       font-weight: 700;
     }
 
-    .form-header-description {
+    .panel-description {
       margin-top: 4px;
-
       color: var(--muted);
       font-size: 12px;
     }
@@ -439,13 +448,10 @@
 
     label {
       display: block;
-
       margin: 16px 0 7px;
-
       color: var(--text);
       font-size: 11px;
       font-weight: 700;
-
       text-transform: uppercase;
       letter-spacing: .03em;
     }
@@ -458,22 +464,14 @@
     input[type="text"],
     textarea {
       width: 100%;
-
       background: var(--input);
-
-      border: 1px solid transparent;
-      border-radius: 5px;
-
+      border: 1px solid var(--border);
+      border-radius: 6px;
       padding: 10px 12px;
-
       color: var(--text);
-
       font-family: inherit;
       font-size: 14px;
-
-      transition:
-        border-color .12s ease,
-        background .12s ease;
+      transition: border-color .12s ease, background .12s ease;
     }
 
     select {
@@ -483,21 +481,20 @@
     select:hover,
     input:hover,
     textarea:hover {
-      border-color: #46484e;
+      border-color: #33333a;
     }
 
     select:focus,
     input:focus,
     textarea:focus {
       outline: none;
-
-      border-color: #666a72;
-      background: #3a3c42;
+      border-color: var(--accent);
+      background: #1e1e22;
     }
 
     input::placeholder,
     textarea::placeholder {
-      color: #777b84;
+      color: #6a6a72;
     }
 
     textarea {
@@ -508,39 +505,24 @@
 
     .hint {
       margin: 6px 0 0;
-
       color: var(--muted);
-      font-size: 11px;
+      font-size: 11.5px;
       line-height: 1.45;
     }
-
-    /* =========================
-       BADGE
-    ========================= */
 
     .badge {
       display: inline-flex;
       align-items: center;
-
       margin-left: 5px;
       padding: 2px 6px;
-
       border-radius: 4px;
-
-      background: #1e1f22;
-
+      background: var(--input);
       color: var(--muted);
-
       font-size: 9px;
       font-weight: 600;
-
       text-transform: uppercase;
       letter-spacing: .02em;
     }
-
-    /* =========================
-       CONDITIONAL FIELDS
-    ========================= */
 
     .field-group {
       display: none;
@@ -564,8 +546,8 @@
       padding: 20px 14px;
 
       background: var(--input);
-      border: 1.5px dashed #4a4d54;
-      border-radius: 6px;
+      border: 1.5px dashed #35353c;
+      border-radius: 8px;
 
       text-align: center;
       cursor: pointer;
@@ -576,7 +558,7 @@
     .dropzone:hover,
     .dropzone.dragover {
       border-color: var(--accent);
-      background: #3a3c42;
+      background: #1e1e22;
     }
 
     .dropzone-title {
@@ -610,7 +592,7 @@
 
       background: var(--input);
       border: 1px solid var(--border);
-      border-radius: 5px;
+      border-radius: 6px;
     }
 
     .attachment-thumb {
@@ -618,8 +600,8 @@
       height: 32px;
       flex-shrink: 0;
 
-      border-radius: 4px;
-      background: #25262a;
+      border-radius: 5px;
+      background: #202024;
       border: 1px solid var(--border);
 
       display: flex;
@@ -652,7 +634,6 @@
 
     .attachment-remove {
       flex-shrink: 0;
-
       width: 24px;
       height: 24px;
 
@@ -662,7 +643,7 @@
 
       background: transparent;
       border: 1px solid var(--border);
-      border-radius: 5px;
+      border-radius: 6px;
 
       color: var(--muted);
       font-size: 13px;
@@ -670,48 +651,40 @@
     }
 
     .attachment-remove:hover {
-      color: var(--dlq);
-      border-color: var(--dlq);
+      color: var(--danger);
+      border-color: var(--danger);
     }
 
     .attachment-error {
       margin-top: 8px;
-
-      color: var(--dlq);
+      color: var(--danger);
       font-size: 11.5px;
     }
 
     /* =========================
-       BUTTON
+       BUTTONS
     ========================= */
 
     button.primary {
       width: 100%;
-
       margin-top: 20px;
-      padding: 10px 16px;
+      padding: 11px 16px;
 
       background: var(--accent);
-
       border: 1px solid var(--accent);
-      border-radius: 5px;
+      border-radius: 7px;
 
       color: #fff;
-
       font-size: 14px;
       font-weight: 600;
 
       cursor: pointer;
-
-      transition:
-        background .12s ease,
-        border-color .12s ease,
-        opacity .12s ease;
+      transition: background .12s ease, border-color .12s ease, opacity .12s ease;
     }
 
     button.primary:hover:not(:disabled) {
-      background: #4954da;
-      border-color: #4954da;
+      background: var(--accent-hover);
+      border-color: var(--accent-hover);
     }
 
     button.primary:active:not(:disabled) {
@@ -723,66 +696,89 @@
       cursor: not-allowed;
     }
 
+    .btn-secondary {
+      padding: 9px 16px;
+      background: var(--input);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .12s ease, border-color .12s ease;
+    }
+
+    .btn-secondary:hover {
+      background: var(--hover);
+      border-color: #33333a;
+    }
+
+    .quick-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
     /* =========================
        RESULT
     ========================= */
 
     #result {
       margin-top: 16px;
-
       padding: 12px 14px;
-
-      border-radius: 5px;
-
-      font-size: 12px;
+      border-radius: 7px;
+      font-size: 12.5px;
       line-height: 1.5;
-
       display: none;
-
       word-break: break-word;
     }
 
     #result.success {
       display: block;
-
       background: var(--success-bg);
-      border: 1px solid var(--success-border);
-
-      color: #c7cbd1;
+      border: 1px solid rgba(34, 197, 94, .35);
+      color: #c9f5d6;
     }
 
     #result.error {
       display: block;
-
-      background: var(--error-bg);
-      border: 1px solid var(--error-border);
-
-      color: #d4d6da;
+      background: var(--danger-bg);
+      border: 1px solid rgba(239, 68, 68, .35);
+      color: #f7d3d3;
     }
 
     /* =========================
-       DASHBOARD VIEW
+       STAT CARDS
     ========================= */
 
     .stats {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
       gap: 10px;
-      margin-bottom: 18px;
+      margin-bottom: 20px;
     }
 
     .stat-card {
-      background: #2b2d31;
+      background: var(--card);
       border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 12px 14px;
+      border-radius: 10px;
+      padding: 14px 16px;
       min-width: 0;
     }
 
     .stat-card .value {
-      font-size: 20px;
+      font-size: 21px;
       font-weight: 700;
       color: var(--text-bright);
+    }
+
+    .stat-card .value.ok {
+      color: var(--success);
+    }
+
+    .stat-card .value.fail {
+      color: var(--danger);
     }
 
     .stat-card .label {
@@ -790,8 +786,12 @@
       text-transform: uppercase;
       letter-spacing: .03em;
       color: var(--muted);
-      margin-top: 3px;
+      margin-top: 4px;
     }
+
+    /* =========================
+       TOOLBAR / TABLE
+    ========================= */
 
     .toolbar {
       display: flex;
@@ -806,7 +806,7 @@
       background: var(--input);
       color: var(--text);
       border: 1px solid var(--border);
-      border-radius: 5px;
+      border-radius: 6px;
       padding: 7px 10px;
       font-size: 13px;
       cursor: pointer;
@@ -827,20 +827,20 @@
     .table-wrapper {
       overflow-x: auto;
       border: 1px solid var(--border);
-      border-radius: 8px;
-      background: #2b2d31;
+      border-radius: 10px;
+      background: var(--card);
     }
 
     table {
       width: 100%;
-      min-width: 720px;
+      min-width: 640px;
       border-collapse: collapse;
     }
 
     th,
     td {
       text-align: left;
-      padding: 10px 12px;
+      padding: 10px 14px;
       border-bottom: 1px solid var(--border);
       font-size: 13px;
       white-space: nowrap;
@@ -866,31 +866,30 @@
 
     .status-badge {
       display: inline-block;
-      padding: 2px 8px;
-      border-radius: 4px;
+      padding: 2px 9px;
+      border-radius: 20px;
       font-size: 11px;
       font-weight: 600;
-      text-transform: uppercase;
     }
 
     .status-badge.pending {
-      background: rgba(109, 113, 120, .2);
+      background: var(--pending-bg);
       color: var(--pending);
     }
 
     .status-badge.success {
-      background: rgba(76, 175, 125, .15);
+      background: var(--success-bg);
       color: var(--success);
     }
 
     .status-badge.retrying {
-      background: rgba(217, 164, 65, .15);
-      color: var(--retrying);
+      background: var(--warning-bg);
+      color: var(--warning);
     }
 
     .status-badge.dlq {
-      background: rgba(217, 83, 79, .15);
-      color: var(--dlq);
+      background: var(--danger-bg);
+      color: var(--danger);
     }
 
     .error-cell {
@@ -898,7 +897,7 @@
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      color: var(--dlq);
+      color: var(--danger);
       font-size: 12px;
     }
 
@@ -916,74 +915,13 @@
     }
 
     /* =========================
-       BOTTOM BAR
+       ADVANCED LINKS (Prometheus)
     ========================= */
 
-    .bottom-bar {
-      min-height: 50px;
-
+    .advanced-links {
       display: flex;
       flex-wrap: wrap;
-      align-items: center;
-      gap: 8px;
-
-      padding: 10px 24px;
-
-      border-top: 1px solid var(--border);
-
-      background: #2b2d31;
-    }
-
-    .status {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-
-      color: var(--muted);
-
-      font-size: 11px;
-      white-space: nowrap;
-    }
-
-    .status-dot {
-      width: 7px;
-      height: 7px;
-      flex-shrink: 0;
-
-      border-radius: 50%;
-
-      background: #777b82;
-    }
-
-    .status-dot.online {
-      background: var(--success);
-    }
-
-    .status-dot.offline {
-      background: var(--dlq);
-    }
-
-    .api-info {
-      margin-left: auto;
-
-      color: var(--muted-dark);
-
-      font-family: ui-monospace, monospace;
-      font-size: 11px;
-
-      display: flex;
-      flex-wrap: wrap;
-      gap: 14px;
-    }
-
-    .api-info a {
-      color: var(--muted-dark);
-      text-decoration: none;
-    }
-
-    .api-info a:hover {
-      color: var(--muted);
-      text-decoration: underline;
+      gap: 10px;
     }
 
     /* =========================
@@ -1000,12 +938,12 @@
     }
 
     ::-webkit-scrollbar-thumb {
-      background: #1e1f22;
+      background: #1a1a1d;
       border-radius: 4px;
     }
 
     ::-webkit-scrollbar-thumb:hover {
-      background: #18191c;
+      background: #232327;
     }
 
     /* =========================
@@ -1025,15 +963,14 @@
         position: fixed;
         top: 0;
         bottom: 0;
-        left: -270px;
+        left: -260px;
         z-index: 20;
 
-        width: 250px;
-        min-width: 250px;
+        width: 240px;
+        min-width: 240px;
 
         transition: left .18s ease;
-
-        box-shadow: 2px 0 18px rgba(0, 0, 0, .35);
+        box-shadow: 2px 0 24px rgba(0, 0, 0, .5);
       }
 
       .sidebar.open {
@@ -1059,25 +996,16 @@
         padding: 14px;
       }
 
-      .form-card {
+      .panel {
         padding: 16px;
       }
 
-      .chat-header {
+      .page-header {
         padding: 0 14px;
       }
 
       .header-link span.link-label {
         display: none;
-      }
-
-      .bottom-bar {
-        padding: 10px 14px;
-      }
-
-      .api-info {
-        font-size: 10px;
-        gap: 10px;
       }
     }
   </style>
@@ -1090,8 +1018,8 @@
 
   <div class="mobile-topbar">
     <button class="menu-btn" id="menu-btn" type="button" aria-label="Abrir menu">≡</button>
-    <div class="engine-mark">N</div>
-    <div class="sidebar-title" style="color:var(--text-bright); font-weight:700; font-size:14px;">Notification Engine</div>
+    <div class="brand-mark">N</div>
+    <div class="brand-name">Notification Engine</div>
   </div>
 
   <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
@@ -1105,77 +1033,40 @@
     <aside class="sidebar" id="sidebar">
 
       <div class="sidebar-header">
-        <div class="engine-mark">N</div>
-        <div class="sidebar-title">Notification Engine</div>
+        <div class="brand-mark">N</div>
+        <div class="brand-name">Notification Engine</div>
       </div>
 
-      <div class="sidebar-section">
-
-        <div class="section-title">
-          Notificações
-        </div>
-
-        <button class="channel active" data-view="send" type="button">
-          <span class="channel-icon">#</span>
-          <span>enviar</span>
+      <nav class="nav">
+        <button class="nav-item active" data-view="overview" type="button">
+          <span class="nav-icon">▣</span>
+          <span>Overview</span>
         </button>
 
-        <button class="channel" data-view="dashboard" type="button">
-          <span class="channel-icon">▤</span>
-          <span>dashboard</span>
+        <button class="nav-item" data-view="send" type="button">
+          <span class="nav-icon">➤</span>
+          <span>Enviar</span>
         </button>
 
-      </div>
+        <button class="nav-item" data-view="dashboard" type="button">
+          <span class="nav-icon">▤</span>
+          <span>Dashboard</span>
+        </button>
 
-      <div class="sidebar-section">
-
-        <div class="section-title">
-          Monitoramento
-        </div>
-
-        <a class="channel" href="http://localhost:9090" target="_blank" rel="noopener">
-          <span class="channel-icon">◎</span>
+        <button class="nav-item" data-view="metrics" type="button">
+          <span class="nav-icon">◎</span>
           <span>Prometheus</span>
-        </a>
+        </button>
+      </nav>
 
-        <a class="channel" href="http://localhost:8080/metrics" target="_blank" rel="noopener">
-          <span class="channel-icon">≡</span>
-          <span>Métricas API</span>
-        </a>
+      <div class="sidebar-spacer"></div>
 
-        <a class="channel" href="http://localhost:9091/metrics" target="_blank" rel="noopener">
-          <span class="channel-icon">≡</span>
-          <span>Métricas Worker</span>
-        </a>
-
-      </div>
-
-      <div class="sidebar-section">
-
-        <div class="section-title">
-          Canais disponíveis
+      <div class="sidebar-footer">
+        <div class="system-status">
+          <span class="status-dot" id="sidebar-status-dot"></span>
+          <span id="sidebar-status-text">Verificando sistema...</span>
         </div>
-
-        <div class="channel static">
-          <span class="channel-icon">◈</span>
-          <span>Discord</span>
-        </div>
-
-        <div class="channel static">
-          <span class="channel-icon">◇</span>
-          <span>Telegram</span>
-        </div>
-
-        <div class="channel static">
-          <span class="channel-icon">□</span>
-          <span>Email</span>
-        </div>
-
-        <div class="channel static">
-          <span class="channel-icon">↗</span>
-          <span>Webhook</span>
-        </div>
-
+        <div class="api-line">localhost:8080</div>
       </div>
 
     </aside>
@@ -1189,25 +1080,17 @@
 
       <!-- HEADER -->
 
-      <header class="chat-header">
+      <header class="page-header">
 
-        <span class="header-icon" id="header-icon">#</span>
-
-        <span class="header-title" id="header-title">
-          enviar
-        </span>
+        <span class="header-title" id="header-title">Overview</span>
 
         <span class="header-divider"></span>
 
         <span class="header-description" id="header-description">
-          Enviar uma nova notificação
+          Resumo das notificações e do status do sistema
         </span>
 
         <span class="header-spacer"></span>
-
-        <a class="header-link" href="http://localhost:9090" target="_blank" rel="noopener">
-          ◎ <span class="link-label">Prometheus</span>
-        </a>
 
       </header>
 
@@ -1216,46 +1099,66 @@
 
       <section class="content">
 
+        <!-- ===== VIEW: OVERVIEW ===== -->
+
+        <div class="view active" id="view-overview">
+          <div class="content-inner wide">
+
+            <div class="welcome">
+              <h1>Visão geral</h1>
+              <p>Acompanhe, num único lugar, o que já foi enviado, o que está em andamento e o que precisa da sua atenção.</p>
+            </div>
+
+            <div class="stats" id="overview-stats"></div>
+
+            <div class="quick-actions">
+              <button class="btn-secondary" type="button" data-goto="send">Enviar notificação</button>
+              <button class="btn-secondary" type="button" data-goto="dashboard">Ver todas as notificações</button>
+            </div>
+
+            <div class="panel">
+              <div class="panel-header">
+                <div class="panel-title">Atividade recente</div>
+                <div class="panel-description">As últimas notificações criadas no sistema.</div>
+              </div>
+
+              <div class="table-wrapper">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Canal</th>
+                      <th>Status</th>
+                      <th>Quando</th>
+                    </tr>
+                  </thead>
+                  <tbody id="overview-rows"></tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
         <!-- ===== VIEW: ENVIAR ===== -->
 
-        <div class="view active" id="view-send">
+        <div class="view" id="view-send">
           <div class="content-inner">
 
             <div class="welcome">
-
-              <h1>
-                Enviar notificação
-              </h1>
-
-              <p>
-                Configure o canal e envie uma mensagem através do Notification Engine.
-              </p>
-
+              <h1>Enviar notificação</h1>
+              <p>Configure o canal e envie uma mensagem através do Notification Engine.</p>
             </div>
 
+            <div class="panel">
 
-            <!-- FORM -->
-
-            <div class="form-card">
-
-              <div class="form-header">
-
-                <div class="form-header-title">
-                  Nova notificação
-                </div>
-
-                <div class="form-header-description">
-                  Os campos disponíveis mudam de acordo com o canal selecionado.
-                </div>
-
+              <div class="panel-header">
+                <div class="panel-title">Nova notificação</div>
+                <div class="panel-description">Os campos disponíveis mudam de acordo com o canal selecionado.</div>
               </div>
-
 
               <form id="form">
 
-                <label for="channel">
-                  Canal
-                </label>
+                <label for="channel">Canal</label>
 
                 <select id="channel">
                   <option value="discord">Discord</option>
@@ -1266,36 +1169,22 @@
 
 
                 <div id="group-target" class="field-group">
-
                   <label for="target">
                     Destino
-                    <span class="badge" id="target-badge">
-                      opcional
-                    </span>
+                    <span class="badge" id="target-badge">opcional</span>
                   </label>
-
                   <input type="text" id="target" placeholder="Deixe em branco para usar o padrão do .env">
-
                   <p class="hint" id="target-hint"></p>
-
                 </div>
 
 
                 <div id="group-subject" class="field-group">
-
-                  <label for="subject">
-                    Assunto
-                  </label>
-
+                  <label for="subject">Assunto</label>
                   <input type="text" id="subject" placeholder="Assunto do e-mail">
-
                 </div>
 
 
-                <label for="message">
-                  Mensagem
-                </label>
-
+                <label for="message">Mensagem</label>
                 <textarea id="message" placeholder="Escreva a mensagem aqui..."></textarea>
 
 
@@ -1315,14 +1204,11 @@
                 <div class="attachment-error" id="attachment-error"></div>
 
 
-                <button type="submit" class="primary" id="submit-btn">
-                  Enviar notificação
-                </button>
+                <button type="submit" class="primary" id="submit-btn">Enviar notificação</button>
 
               </form>
 
             </div>
-
 
             <div id="result"></div>
 
@@ -1334,15 +1220,20 @@
         <div class="view" id="view-dashboard">
           <div class="content-inner wide">
 
+            <div class="welcome">
+              <h1>Dashboard</h1>
+              <p>Todas as notificações, com filtro por status e canal.</p>
+            </div>
+
             <div class="stats" id="stats"></div>
 
             <div class="toolbar">
               <select id="filter-status">
                 <option value="">Todos os status</option>
-                <option value="pending">Pending</option>
-                <option value="success">Success</option>
-                <option value="retrying">Retrying</option>
-                <option value="dlq">DLQ</option>
+                <option value="pending">Pendente</option>
+                <option value="success">Sucesso</option>
+                <option value="retrying">Reenviando</option>
+                <option value="dlq">Falhou</option>
               </select>
 
               <select id="filter-channel">
@@ -1378,24 +1269,41 @@
           </div>
         </div>
 
+        <!-- ===== VIEW: PROMETHEUS / MÉTRICAS ===== -->
+
+        <div class="view" id="view-metrics">
+          <div class="content-inner wide">
+
+            <div class="welcome">
+              <h1>Prometheus</h1>
+              <p>Status técnico do sistema. Os painéis detalhados (contadores, séries temporais) ficam disponíveis nos links avançados abaixo, voltados para quem cuida da parte técnica.</p>
+            </div>
+
+            <div class="stats" id="health-stats"></div>
+
+            <div class="panel">
+              <div class="panel-header">
+                <div class="panel-title">Painéis técnicos avançados</div>
+                <div class="panel-description">Contadores, histogramas de latência e séries temporais — para times de engenharia.</div>
+              </div>
+
+              <div class="advanced-links">
+                <a class="header-link" href="http://localhost:9090" target="_blank" rel="noopener">
+                  ◎ <span class="link-label">Prometheus (consulta e gráficos)</span>
+                </a>
+                <a class="header-link" href="http://localhost:8080/metrics" target="_blank" rel="noopener">
+                  ≡ <span class="link-label">Métricas cruas da API</span>
+                </a>
+                <a class="header-link" href="http://localhost:9091/metrics" target="_blank" rel="noopener">
+                  ≡ <span class="link-label">Métricas cruas do Worker</span>
+                </a>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
       </section>
-
-
-      <!-- BOTTOM -->
-
-      <footer class="bottom-bar">
-
-        <div class="status">
-          <span class="status-dot" id="api-status-dot"></span>
-          <span id="api-status-text">Verificando API...</span>
-        </div>
-
-        <div class="api-info">
-          <span>API · localhost:8080</span>
-          <a href="http://localhost:9090" target="_blank" rel="noopener">Prometheus · :9090</a>
-        </div>
-
-      </footer>
 
     </main>
 
@@ -1420,6 +1328,17 @@
       return div.innerHTML;
     }
 
+    const STATUS_LABELS = {
+      pending: "Pendente",
+      success: "Sucesso",
+      retrying: "Reenviando",
+      dlq: "Falhou"
+    };
+
+    function statusLabel(status) {
+      return STATUS_LABELS[status] || status;
+    }
+
     /* ===== MENU MOBILE ===== */
 
     const sidebar = document.getElementById("sidebar");
@@ -1441,31 +1360,40 @@
 
     /* ===== NAVEGAÇÃO ENTRE VIEWS ===== */
 
-    const navButtons = document.querySelectorAll(".channel[data-view]");
+    const navButtons = document.querySelectorAll(".nav-item[data-view]");
     const views = {
+      overview: document.getElementById("view-overview"),
       send: document.getElementById("view-send"),
-      dashboard: document.getElementById("view-dashboard")
+      dashboard: document.getElementById("view-dashboard"),
+      metrics: document.getElementById("view-metrics")
     };
 
     const headerConfig = {
-      send: { icon: "#", title: "enviar", description: "Enviar uma nova notificação" },
-      dashboard: { icon: "▤", title: "dashboard", description: "Monitorar notificações em tempo real" }
+      overview: { title: "Overview", description: "Resumo das notificações e do status do sistema" },
+      send: { title: "Enviar", description: "Enviar uma nova notificação" },
+      dashboard: { title: "Dashboard", description: "Todas as notificações, com filtro por status e canal" },
+      metrics: { title: "Prometheus", description: "Status técnico e painéis avançados" }
     };
 
     function switchView(name) {
       navButtons.forEach(btn => btn.classList.toggle("active", btn.dataset.view === name));
       Object.entries(views).forEach(([key, el]) => el.classList.toggle("active", key === name));
 
-      document.getElementById("header-icon").textContent = headerConfig[name].icon;
       document.getElementById("header-title").textContent = headerConfig[name].title;
       document.getElementById("header-description").textContent = headerConfig[name].description;
 
       closeSidebar();
+
       if (name === "dashboard") refreshDashboard();
+      if (name === "overview") refreshOverview();
     }
 
     navButtons.forEach(btn => {
       btn.addEventListener("click", () => switchView(btn.dataset.view));
+    });
+
+    document.querySelectorAll("[data-goto]").forEach(btn => {
+      btn.addEventListener("click", () => switchView(btn.dataset.goto));
     });
 
     /* ===== FORMULÁRIO: CAMPOS POR CANAL ===== */
@@ -1677,7 +1605,7 @@
         if (!response.ok) {
           showResult("error", "Erro: " + (data.error || "falha desconhecida"));
         } else {
-          showResult("success", `Enfileirado! id: ${data.id} — status: ${data.status}. Veja o Dashboard para acompanhar a entrega.`);
+          showResult("success", `Enfileirado! id: ${data.id} — status: ${statusLabel(data.status)}. Veja o Dashboard para acompanhar a entrega.`);
           document.getElementById("message").value = "";
           resetAttachments();
         }
@@ -1694,12 +1622,22 @@
       result.textContent = text;
     }
 
-    /* ===== DASHBOARD ===== */
+    /* ===== ESTATÍSTICAS (compartilhado entre Overview e Dashboard) ===== */
 
-    const statsEl = document.getElementById("stats");
-    const rowsEl = document.getElementById("rows");
-    const statusFilter = document.getElementById("filter-status");
-    const channelFilter = document.getElementById("filter-channel");
+    function renderStatCards(container, s) {
+      container.innerHTML = `
+        <div class="stat-card"><div class="value">${s.total}</div><div class="label">Total</div></div>
+        <div class="stat-card"><div class="value">${s.success}</div><div class="label">Sucesso</div></div>
+        <div class="stat-card"><div class="value">${s.pending}</div><div class="label">Pendente</div></div>
+        <div class="stat-card"><div class="value">${s.retrying}</div><div class="label">Reenviando</div></div>
+        <div class="stat-card"><div class="value">${s.dlq}</div><div class="label">Falharam</div></div>
+      `;
+    }
+
+    async function fetchStats() {
+      const res = await fetch(`${API_BASE}/api/v1/stats`);
+      return res.json();
+    }
 
     function fmtDate(iso) {
       return new Date(iso).toLocaleString("pt-BR");
@@ -1709,17 +1647,45 @@
       return id.slice(0, 8) + "…";
     }
 
-    async function loadStats() {
-      const res = await fetch(`${API_BASE}/api/v1/stats`);
-      const s = await res.json();
+    /* ===== OVERVIEW ===== */
 
-      statsEl.innerHTML = `
-        <div class="stat-card"><div class="value">${s.total}</div><div class="label">Total</div></div>
-        <div class="stat-card"><div class="value">${s.pending}</div><div class="label">Pending</div></div>
-        <div class="stat-card"><div class="value">${s.success}</div><div class="label">Success</div></div>
-        <div class="stat-card"><div class="value">${s.retrying}</div><div class="label">Retrying</div></div>
-        <div class="stat-card"><div class="value">${s.dlq}</div><div class="label">DLQ</div></div>
+    const overviewStatsEl = document.getElementById("overview-stats");
+    const overviewRowsEl = document.getElementById("overview-rows");
+
+    async function refreshOverview() {
+      const stats = await fetchStats();
+      renderStatCards(overviewStatsEl, stats);
+
+      const res = await fetch(`${API_BASE}/api/v1/notifications?limit=5`);
+      const items = await res.json();
+
+      if (!items || items.length === 0) {
+        overviewRowsEl.innerHTML = `<tr><td colspan="3" class="empty-row">Nenhuma notificação enviada ainda.</td></tr>`;
+        return;
+      }
+
+      overviewRowsEl.innerHTML = items.map(n => {
+        const validStatus = ["pending", "success", "retrying", "dlq"].includes(n.status) ? n.status : "pending";
+        return `
+        <tr>
+          <td>${escapeHtml(n.channel)}</td>
+          <td><span class="status-badge ${validStatus}">${escapeHtml(statusLabel(n.status))}</span></td>
+          <td>${escapeHtml(fmtDate(n.created_at))}</td>
+        </tr>
       `;
+      }).join("");
+    }
+
+    /* ===== DASHBOARD ===== */
+
+    const statsEl = document.getElementById("stats");
+    const rowsEl = document.getElementById("rows");
+    const statusFilter = document.getElementById("filter-status");
+    const channelFilter = document.getElementById("filter-channel");
+
+    async function loadStats() {
+      const s = await fetchStats();
+      renderStatCards(statsEl, s);
     }
 
     async function loadList() {
@@ -1736,7 +1702,6 @@
       }
 
       rowsEl.innerHTML = items.map(n => {
-        const status = escapeHtml(n.status);
         const validStatus = ["pending", "success", "retrying", "dlq"].includes(n.status) ? n.status : "pending";
         const attachmentsBadge = (n.attachments && n.attachments.length > 0)
           ? ` <span class="badge" title="${n.attachments.length} anexo(s)">anexos: ${n.attachments.length}</span>`
@@ -1746,7 +1711,7 @@
         <tr>
           <td class="mono" title="${escapeHtml(n.id)}">${escapeHtml(shortId(n.id))}</td>
           <td>${escapeHtml(n.channel)}</td>
-          <td><span class="status-badge ${validStatus}">${status}</span>${attachmentsBadge}</td>
+          <td><span class="status-badge ${validStatus}">${escapeHtml(statusLabel(n.status))}</span>${attachmentsBadge}</td>
           <td>${escapeHtml(n.attempts)}/${escapeHtml(n.max_attempts)}</td>
           <td class="error-cell" title="${escapeHtml(n.last_error || "")}">${escapeHtml(n.last_error || "—")}</td>
           <td>${escapeHtml(fmtDate(n.created_at))}</td>
@@ -1783,29 +1748,48 @@
 
     setInterval(() => {
       if (views.dashboard.classList.contains("active")) refreshDashboard();
+      if (views.overview.classList.contains("active")) refreshOverview();
     }, 15000);
 
-    /* ===== STATUS DA API (rodapé) ===== */
+    /* ===== STATUS DO SISTEMA (sidebar + Prometheus) ===== */
 
-    async function checkApiStatus() {
-      const dot = document.getElementById("api-status-dot");
-      const text = document.getElementById("api-status-text");
+    async function checkSystemHealth() {
+      const dot = document.getElementById("sidebar-status-dot");
+      const text = document.getElementById("sidebar-status-text");
+      const healthStats = document.getElementById("health-stats");
+
+      let data = null;
+      let ok = false;
+
       try {
-        const res = await fetch(`${API_BASE}/health`);
-        if (res.ok) {
-          dot.className = "status-dot online";
-          text.textContent = "Notification Engine · online";
-        } else {
-          throw new Error("not ok");
-        }
+        const res = await fetch(`${API_BASE}/health/ready`);
+        data = await res.json();
+        ok = res.ok && data.postgres === "ok" && data.redis === "ok";
       } catch {
-        dot.className = "status-dot offline";
-        text.textContent = "Notification Engine · offline";
+        ok = false;
+      }
+
+      dot.className = "status-dot " + (ok ? "online" : "offline");
+      text.textContent = ok ? "Sistema operacional" : "Sistema com instabilidade";
+
+      if (healthStats) {
+        const dbOk = data && data.postgres === "ok";
+        const queueOk = data && data.redis === "ok";
+
+        healthStats.innerHTML = `
+          <div class="stat-card"><div class="value ${ok ? "ok" : "fail"}">${ok ? "Operacional" : "Instável"}</div><div class="label">API</div></div>
+          <div class="stat-card"><div class="value ${data ? (dbOk ? "ok" : "fail") : "fail"}">${data ? (dbOk ? "Operacional" : "Instável") : "Indisponível"}</div><div class="label">Banco de dados</div></div>
+          <div class="stat-card"><div class="value ${data ? (queueOk ? "ok" : "fail") : "fail"}">${data ? (queueOk ? "Operacional" : "Instável") : "Indisponível"}</div><div class="label">Fila de mensagens</div></div>
+        `;
       }
     }
 
-    checkApiStatus();
-    setInterval(checkApiStatus, 10000);
+    checkSystemHealth();
+    setInterval(checkSystemHealth, 10000);
+
+    /* ===== CARGA INICIAL ===== */
+
+    refreshOverview();
   </script>
 
 </body>
