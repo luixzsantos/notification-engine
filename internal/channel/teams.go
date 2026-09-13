@@ -97,20 +97,15 @@ func ValidateTeamsHost(target string) error {
 
 // buildAdaptiveCardEnvelope monta o envelope "message" com um Adaptive
 // Card — o formato que a ação "Post card in a chat or channel" do Power
-// Automate espera. Inclui um TextBlock com a mensagem (se houver) e uma
-// tabela nativa do Adaptive Card (se n.Table estiver presente).
+// Automate espera. Inclui o(s) TextBlock(s) da mensagem — um por título
+// ("#"/"##"/"###", normalizado por domain.ParseRichMessage a partir de
+// "/h1"/"/h2"/"/h3"), com tamanho e peso de acordo com o nível, mais um
+// parágrafo para o texto comum — e uma tabela nativa do Adaptive Card (se
+// n.Table estiver presente).
 func buildAdaptiveCardEnvelope(n *domain.Notification) map[string]any {
 	var body []map[string]any
 
-	if n.Message != "" {
-		body = append(body, map[string]any{
-			"type":   "TextBlock",
-			"text":   n.Message,
-			"wrap":   true,
-			"size":   "Medium",
-			"weight": "Bolder",
-		})
-	}
+	body = append(body, buildMessageBlocks(n.Message)...)
 
 	if n.Table != nil && len(n.Table.Rows) > 0 {
 		body = append(body, buildAdaptiveCardTable(n.Table))
@@ -132,6 +127,60 @@ func buildAdaptiveCardEnvelope(n *domain.Notification) map[string]any {
 			},
 		},
 	}
+}
+
+// buildMessageBlocks converte a mensagem em uma lista de TextBlock do
+// Adaptive Card: cada linha de título vira seu próprio TextBlock, com
+// tamanho maior e negrito de acordo com o nível (a única renderização
+// realmente nativa de título entre os canais suportados); linhas comuns
+// consecutivas são agrupadas num único TextBlock de parágrafo, sem negrito
+// forçado (diferente do título, que carrega toda a ênfase visual agora).
+func buildMessageBlocks(message string) []map[string]any {
+	if message == "" {
+		return nil
+	}
+
+	lines := headingLines(message)
+	var blocks []map[string]any
+	var paragraph []string
+
+	flush := func() {
+		if len(paragraph) == 0 {
+			return
+		}
+		blocks = append(blocks, map[string]any{
+			"type": "TextBlock",
+			"text": strings.Join(paragraph, "\n"),
+			"wrap": true,
+		})
+		paragraph = nil
+	}
+
+	for _, l := range lines {
+		if l.Level == 0 {
+			paragraph = append(paragraph, l.Text)
+			continue
+		}
+		flush()
+
+		size := "Medium"
+		switch l.Level {
+		case 1:
+			size = "ExtraLarge"
+		case 2:
+			size = "Large"
+		}
+		blocks = append(blocks, map[string]any{
+			"type":   "TextBlock",
+			"text":   l.Text,
+			"wrap":   true,
+			"size":   size,
+			"weight": "Bolder",
+		})
+	}
+	flush()
+
+	return blocks
 }
 
 // buildAdaptiveCardTable converte domain.Table para o elemento "Table" do

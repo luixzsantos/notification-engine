@@ -39,22 +39,55 @@ type telegramPayload struct {
 	ParseMode string `json:"parse_mode,omitempty"`
 }
 
-// buildTelegramText monta o texto da mensagem, anexando a tabela (se
-// houver) dentro de um bloco <pre> — o único jeito confiável de preservar
-// alinhamento monoespaçado na API do Telegram. Isso exige parse_mode=HTML,
-// e por isso o texto livre também precisa ser escapado (senão um "<" ou "&"
-// na mensagem do usuário quebraria o parsing HTML do lado do Telegram).
+// buildTelegramText monta o texto da mensagem: linhas de título ("#"/"##"/
+// "###", normalizadas por domain.ParseRichMessage a partir de "/h1"/"/h2"/
+// "/h3") viram negrito (o Telegram não tem conceito de título, só ênfase), e
+// a tabela (se houver) é anexada dentro de um bloco <pre> — o único jeito
+// confiável de preservar alinhamento monoespaçado na API do Telegram. Ambos
+// exigem parse_mode=HTML, e por isso o texto livre também precisa ser
+// escapado (senão um "<" ou "&" na mensagem do usuário quebraria o parsing
+// HTML do lado do Telegram).
 func buildTelegramText(n *domain.Notification) (text string, parseMode string) {
-	rendered := n.Table.FormatMonospace()
-	if rendered == "" {
+	msgText, hasHeadingLines := telegramFormatHeadings(n.Message)
+	tableRendered := n.Table.FormatMonospace()
+
+	if !hasHeadingLines && tableRendered == "" {
 		return n.Message, ""
 	}
 
-	block := "<pre>" + html.EscapeString(rendered) + "</pre>"
-	if n.Message == "" {
-		return block, "HTML"
+	var parts []string
+	if msgText != "" {
+		if !hasHeadingLines {
+			msgText = html.EscapeString(msgText)
+		}
+		parts = append(parts, msgText)
 	}
-	return html.EscapeString(n.Message) + "\n\n" + block, "HTML"
+	if tableRendered != "" {
+		parts = append(parts, "<pre>"+html.EscapeString(tableRendered)+"</pre>")
+	}
+
+	return strings.Join(parts, "\n\n"), "HTML"
+}
+
+// telegramFormatHeadings converte linhas de título em negrito HTML
+// (<b>...</b>), escapando cada linha individualmente. Quando não há nenhum
+// título, devolve a mensagem original sem tocar nela (usedHTML=false) para
+// que o chamador decida se precisa escapar.
+func telegramFormatHeadings(message string) (text string, usedHTML bool) {
+	lines := headingLines(message)
+	if !hasHeading(lines) {
+		return message, false
+	}
+
+	parts := make([]string, len(lines))
+	for i, l := range lines {
+		escaped := html.EscapeString(l.Text)
+		if l.Level > 0 {
+			escaped = "<b>" + escaped + "</b>"
+		}
+		parts[i] = escaped
+	}
+	return strings.Join(parts, "\n"), true
 }
 
 // Send envia a notificação para o Telegram. n.Target deve ser o chat_id do

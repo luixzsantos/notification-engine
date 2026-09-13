@@ -69,7 +69,7 @@ func (s *WhatsAppSender) Send(ctx context.Context, n *domain.Notification) error
 			"messaging_product": "whatsapp",
 			"to":                to,
 			"type":              "text",
-			"text":              map[string]any{"body": appendMonospaceTable(n.Message, n.Table)},
+			"text":              map[string]any{"body": appendMonospaceTable(whatsappFormatHeadings(n.Message), n.Table)},
 		}
 	}
 
@@ -98,6 +98,26 @@ func (s *WhatsAppSender) Send(ctx context.Context, n *domain.Notification) error
 	}
 
 	return nil
+}
+
+// whatsappFormatHeadings converte linhas de título ("#"/"##"/"###") na
+// sintaxe de negrito do WhatsApp ("*texto*") — o formato não tem conceito
+// de título, só ênfase. Sem nenhum título, devolve a mensagem inalterada.
+func whatsappFormatHeadings(message string) string {
+	lines := headingLines(message)
+	if !hasHeading(lines) {
+		return message
+	}
+
+	parts := make([]string, len(lines))
+	for i, l := range lines {
+		if l.Level > 0 {
+			parts[i] = "*" + l.Text + "*"
+		} else {
+			parts[i] = l.Text
+		}
+	}
+	return strings.Join(parts, "\n")
 }
 
 func buildWhatsAppTemplatePayload(to string, n *domain.Notification) map[string]any {

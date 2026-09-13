@@ -146,6 +146,47 @@ func TestCreateNotification_HappyPath(t *testing.T) {
 	}
 }
 
+func TestCreateNotification_ParsesRichMessageSyntax(t *testing.T) {
+	repo := newFakeRepository()
+	producer := &fakeProducer{}
+	svc := newService(repo, producer)
+
+	n, err := svc.CreateNotification(context.Background(), CreateNotificationInput{
+		Channel: domain.ChannelWebhook,
+		Target:  "https://example.com/hook",
+		Message: "/h1 Aprovações pendentes\n/table\nNome, Status\nJoão, Aprovado",
+	})
+	if err != nil {
+		t.Fatalf("esperava sucesso, obteve erro: %v", err)
+	}
+	if n.Message != "# Aprovações pendentes" {
+		t.Errorf("esperava mensagem normalizada sem o bloco /table, obteve %q", n.Message)
+	}
+	if n.Table == nil || len(n.Table.Rows) != 1 || n.Table.Rows[0][0] != "João" {
+		t.Errorf("esperava tabela extraída da mensagem, obteve %+v", n.Table)
+	}
+}
+
+func TestCreateNotification_ExplicitTableTakesPrecedenceOverMessageSyntax(t *testing.T) {
+	repo := newFakeRepository()
+	producer := &fakeProducer{}
+	svc := newService(repo, producer)
+
+	explicit := &domain.Table{Headers: []string{"A"}, Rows: [][]string{{"1"}}}
+	n, err := svc.CreateNotification(context.Background(), CreateNotificationInput{
+		Channel: domain.ChannelWebhook,
+		Target:  "https://example.com/hook",
+		Message: "/table\nX, Y\n1, 2",
+		Table:   explicit,
+	})
+	if err != nil {
+		t.Fatalf("esperava sucesso, obteve erro: %v", err)
+	}
+	if n.Table != explicit {
+		t.Errorf("esperava que o table explícito do input prevalecesse, obteve %+v", n.Table)
+	}
+}
+
 func TestCreateNotification_ValidationError(t *testing.T) {
 	repo := newFakeRepository()
 	producer := &fakeProducer{}

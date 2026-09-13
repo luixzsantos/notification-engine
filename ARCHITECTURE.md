@@ -291,6 +291,32 @@ renderizar:
 Nenhum desses formatos é o "dono" do dado — `domain.Table` é neutro, os
 `Sender`s é que sabem traduzir pro formato de cada canal.
 
+### Sintaxe leve embutida na mensagem (`domain.ParseRichMessage`)
+
+Em vez de exigir o campo `table` estruturado (ou um campo de UI à parte) pra
+anexar título/tabela, `service.NotificationService.build` roda
+`domain.ParseRichMessage` sobre `Message` antes de persistir: uma linha
+`/h1 texto`/`/h2 texto`/`/h3 texto` vira um título (normalizado pro Markdown
+canônico `#`/`##`/`###`, que cada `Sender` depois interpreta do seu jeito —
+ver `internal/channel/heading_format.go`), e um bloco `/table` (linhas
+separadas por vírgula, terminando na primeira linha em branco) vira um
+`domain.Table`, exatamente como se tivesse vindo no campo `table`. O parsing
+roda uma única vez, na criação — o que fica persistido no Postgres e passa
+pela fila já é a forma final (mensagem normalizada + `Table` extraído), sem
+custo de reparsing em cada tentativa de entrega.
+
+Se o cliente já enviar um `table` explícito no JSON, ele prevalece sobre
+qualquer bloco `/table` encontrado na mensagem — a sintaxe embutida é uma
+conveniência para quem digita a notificação à mão (como o formulário em
+`main.html`, que não tem mais um campo de tabela separado), não uma
+substituição do contrato estruturado para quem integra programaticamente.
+
+O Discord já entende `#`/`##`/`###` nativamente, então não precisa de
+nenhum tratamento especial; os demais canais (Telegram, WhatsApp, e-mail,
+Teams) convertem esses marcadores pro que cada um suporta — negrito,
+`<h1>`/`<h2>`/`<h3>` reais, ou um `TextBlock` dedicado por título no
+Adaptive Card.
+
 ---
 
 ## Autenticação e autorização

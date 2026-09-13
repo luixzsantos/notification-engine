@@ -7,35 +7,72 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Notification Engine</title>
 
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
   <style>
     :root {
-      --bg: #0c0c0e;
-      --sidebar: #101012;
-      --panel: #0f0f11;
-      --card: #17171a;
-      --input: #1a1a1e;
-      --border: #232327;
+      --bg: #ffffff;
+      --sidebar: #fbfbfa;
+      --panel: #ffffff;
+      --card: #ffffff;
+      --input: #ffffff;
+      --border: #e9e9e7;
 
-      --text: #d4d4d8;
-      --text-bright: #f7f7f8;
-      --muted: #8f8f97;
-      --muted-dark: #5c5c63;
+      --text: #37352f;
+      --text-bright: #1f1f1f;
+      --muted: #787774;
+      --muted-dark: #9b9a97;
 
-      --hover: #1c1c20;
-      --active: #202024;
+      --hover: #f1f1ef;
+      --active: #e9e9e7;
 
-      --accent: #ec4899;
-      --accent-hover: #db2777;
-      --accent-soft: rgba(236, 72, 153, .14);
+      --accent: #2383e2;
+      --accent-hover: #0b6fcc;
+      --accent-soft: rgba(35, 131, 226, .1);
 
-      --success: #22c55e;
-      --success-bg: rgba(34, 197, 94, .13);
-      --warning: #f59e0b;
-      --warning-bg: rgba(245, 158, 11, .13);
-      --danger: #ef4444;
-      --danger-bg: rgba(239, 68, 68, .13);
-      --pending: #9a9aa2;
-      --pending-bg: rgba(154, 154, 162, .14);
+      --success: #2b7a41;
+      --success-bg: #dbeddb;
+      --warning: #a86400;
+      --warning-bg: #fbecdd;
+      --danger: #c0362c;
+      --danger-bg: #fbe4e4;
+      --pending: #787774;
+      --pending-bg: #e9e9e7;
+
+      color-scheme: light;
+    }
+
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --bg: #191919;
+      --sidebar: #202020;
+      --panel: #191919;
+      --card: #202020;
+      --input: #202020;
+      --border: #2f2f2f;
+
+      --text: #d4d4d4;
+      --text-bright: #ffffff;
+      --muted: #999999;
+      --muted-dark: #6b6b6b;
+
+      --hover: #2a2a2a;
+      --active: #333333;
+
+      --accent: #5b9bd5;
+      --accent-hover: #79b0dd;
+      --accent-soft: rgba(91, 155, 213, .16);
+
+      --success: #4dab6a;
+      --success-bg: rgba(77, 171, 106, .15);
+      --warning: #d9a441;
+      --warning-bg: rgba(217, 164, 65, .15);
+      --danger: #e5534b;
+      --danger-bg: rgba(229, 83, 75, .15);
+      --pending: #999999;
+      --pending-bg: rgba(153, 153, 153, .15);
     }
 
     * {
@@ -53,6 +90,7 @@
       background: var(--bg);
       color: var(--text);
       font-family:
+        "Inter",
         -apple-system,
         BlinkMacSystemFont,
         "Segoe UI",
@@ -60,6 +98,7 @@
         Helvetica,
         Arial,
         sans-serif;
+      -webkit-font-smoothing: antialiased;
     }
 
     button {
@@ -154,30 +193,41 @@
       border-bottom: 1px solid var(--border);
     }
 
-    .brand-mark {
-      width: 26px;
-      height: 26px;
-      flex-shrink: 0;
-
-      display: flex;
-      align-items: center;
-      justify-content: center;
-
-      border-radius: 7px;
-      background: var(--accent);
-
-      font-size: 12px;
-      font-weight: 800;
-      color: #fff;
-    }
-
     .brand-name {
+      flex: 1;
+      min-width: 0;
       color: var(--text-bright);
       font-size: 14px;
       font-weight: 700;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+
+    .theme-toggle-btn {
+      width: 30px;
+      height: 30px;
+      flex-shrink: 0;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1;
+      cursor: pointer;
+
+      transition: background .12s ease, color .12s ease, border-color .12s ease;
+    }
+
+    .theme-toggle-btn:hover {
+      background: var(--hover);
+      color: var(--text);
+      border-color: var(--muted-dark);
     }
 
     .nav {
@@ -335,28 +385,6 @@
       min-width: 8px;
     }
 
-    .header-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-
-      color: var(--muted);
-      font-size: 12.5px;
-      text-decoration: none;
-      white-space: nowrap;
-
-      padding: 6px 12px;
-      border-radius: 6px;
-      border: 1px solid var(--border);
-
-      transition: color .12s ease, border-color .12s ease;
-    }
-
-    .header-link:hover {
-      color: var(--text-bright);
-      border-color: #3a3a40;
-    }
-
     /* =========================
        CONTENT
     ========================= */
@@ -449,9 +477,9 @@
     label {
       display: block;
       margin: 16px 0 7px;
-      color: var(--text);
+      color: var(--muted);
       font-size: 11px;
-      font-weight: 700;
+      font-weight: 600;
       text-transform: uppercase;
       letter-spacing: .03em;
     }
@@ -481,7 +509,7 @@
     select:hover,
     input:hover,
     textarea:hover {
-      border-color: #33333a;
+      border-color: var(--muted-dark);
     }
 
     select:focus,
@@ -489,12 +517,12 @@
     textarea:focus {
       outline: none;
       border-color: var(--accent);
-      background: #1e1e22;
+      box-shadow: 0 0 0 1px var(--accent);
     }
 
     input::placeholder,
     textarea::placeholder {
-      color: #6a6a72;
+      color: var(--muted-dark);
     }
 
     textarea {
@@ -508,36 +536,6 @@
       color: var(--muted);
       font-size: 11.5px;
       line-height: 1.45;
-    }
-
-    #table-input {
-      min-height: 70px;
-      font-family: ui-monospace, monospace;
-      font-size: 13px;
-    }
-
-    .checkbox-label {
-      display: flex;
-      align-items: center;
-      gap: 7px;
-
-      margin: 8px 0 0;
-      padding: 0;
-
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 500;
-      text-transform: none;
-      letter-spacing: normal;
-
-      cursor: pointer;
-    }
-
-    .checkbox-label input[type="checkbox"] {
-      width: 14px;
-      height: 14px;
-      accent-color: var(--accent);
-      cursor: pointer;
     }
 
     .badge {
@@ -575,8 +573,8 @@
 
       padding: 20px 14px;
 
-      background: var(--input);
-      border: 1.5px dashed #35353c;
+      background: var(--sidebar);
+      border: 1.5px dashed var(--muted-dark);
       border-radius: 8px;
 
       text-align: center;
@@ -588,7 +586,7 @@
     .dropzone:hover,
     .dropzone.dragover {
       border-color: var(--accent);
-      background: #1e1e22;
+      background: var(--accent-soft);
     }
 
     .dropzone-title {
@@ -631,7 +629,7 @@
       flex-shrink: 0;
 
       border-radius: 5px;
-      background: #202024;
+      background: var(--hover);
       border: 1px solid var(--border);
 
       display: flex;
@@ -740,7 +738,7 @@
 
     .btn-secondary:hover {
       background: var(--hover);
-      border-color: #33333a;
+      border-color: var(--muted-dark);
     }
 
     .quick-actions {
@@ -767,15 +765,15 @@
     #result.success {
       display: block;
       background: var(--success-bg);
-      border: 1px solid rgba(34, 197, 94, .35);
-      color: #c9f5d6;
+      border: 1px solid rgba(43, 122, 65, .25);
+      color: var(--success);
     }
 
     #result.error {
       display: block;
       background: var(--danger-bg);
-      border: 1px solid rgba(239, 68, 68, .35);
-      color: #f7d3d3;
+      border: 1px solid rgba(192, 54, 44, .25);
+      color: var(--danger);
     }
 
     /* =========================
@@ -945,16 +943,6 @@
     }
 
     /* =========================
-       ADVANCED LINKS (Prometheus)
-    ========================= */
-
-    .advanced-links {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-    }
-
-    /* =========================
        SCROLLBAR
     ========================= */
 
@@ -968,12 +956,12 @@
     }
 
     ::-webkit-scrollbar-thumb {
-      background: #1a1a1d;
+      background: var(--border);
       border-radius: 4px;
     }
 
     ::-webkit-scrollbar-thumb:hover {
-      background: #232327;
+      background: var(--muted-dark);
     }
 
     /* =========================
@@ -1000,7 +988,7 @@
         min-width: 240px;
 
         transition: left .18s ease;
-        box-shadow: 2px 0 24px rgba(0, 0, 0, .5);
+        box-shadow: 2px 0 24px rgba(0, 0, 0, .12);
       }
 
       .sidebar.open {
@@ -1033,12 +1021,21 @@
       .page-header {
         padding: 0 14px;
       }
-
-      .header-link span.link-label {
-        display: none;
-      }
     }
   </style>
+
+  <script>
+    // Aplicado o quanto antes (ainda no <head>) para não piscar o tema
+    // errado ao carregar a página.
+    (function () {
+      try {
+        const saved = localStorage.getItem("theme");
+        if (saved === "dark" || saved === "light") {
+          document.documentElement.setAttribute("data-theme", saved);
+        }
+      } catch (e) { /* localStorage indisponível (ex: aba privada) */ }
+    })();
+  </script>
 
 </head>
 
@@ -1048,8 +1045,8 @@
 
   <div class="mobile-topbar">
     <button class="menu-btn" id="menu-btn" type="button" aria-label="Abrir menu">≡</button>
-    <div class="brand-mark">N</div>
     <div class="brand-name">Notification Engine</div>
+    <button class="theme-toggle-btn" type="button" aria-label="Alternar tema claro/escuro">☾</button>
   </div>
 
   <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
@@ -1063,17 +1060,12 @@
     <aside class="sidebar" id="sidebar">
 
       <div class="sidebar-header">
-        <div class="brand-mark">N</div>
         <div class="brand-name">Notification Engine</div>
+        <button class="theme-toggle-btn" type="button" aria-label="Alternar tema claro/escuro">☾</button>
       </div>
 
       <nav class="nav">
-        <button class="nav-item active" data-view="overview" type="button">
-          <span class="nav-icon">▣</span>
-          <span>Overview</span>
-        </button>
-
-        <button class="nav-item" data-view="send" type="button">
+        <button class="nav-item active" data-view="send" type="button">
           <span class="nav-icon">➤</span>
           <span>Enviar</span>
         </button>
@@ -1083,10 +1075,10 @@
           <span>Dashboard</span>
         </button>
 
-        <button class="nav-item" data-view="metrics" type="button">
+        <a class="nav-item" href="http://localhost:9090" target="_blank" rel="noopener">
           <span class="nav-icon">◎</span>
           <span>Prometheus</span>
-        </button>
+        </a>
       </nav>
 
       <div class="sidebar-spacer"></div>
@@ -1112,12 +1104,12 @@
 
       <header class="page-header">
 
-        <span class="header-title" id="header-title">Overview</span>
+        <span class="header-title" id="header-title">Enviar</span>
 
         <span class="header-divider"></span>
 
         <span class="header-description" id="header-description">
-          Resumo das notificações e do status do sistema
+          Enviar uma nova notificação
         </span>
 
         <span class="header-spacer"></span>
@@ -1129,50 +1121,9 @@
 
       <section class="content">
 
-        <!-- ===== VIEW: OVERVIEW ===== -->
-
-        <div class="view active" id="view-overview">
-          <div class="content-inner wide">
-
-            <div class="welcome">
-              <h1>Visão geral</h1>
-              <p>Acompanhe, num único lugar, o que já foi enviado, o que está em andamento e o que precisa da sua
-                atenção.</p>
-            </div>
-
-            <div class="stats" id="overview-stats"></div>
-
-            <div class="quick-actions">
-              <button class="btn-secondary" type="button" data-goto="send">Enviar notificação</button>
-              <button class="btn-secondary" type="button" data-goto="dashboard">Ver todas as notificações</button>
-            </div>
-
-            <div class="panel">
-              <div class="panel-header">
-                <div class="panel-title">Atividade recente</div>
-                <div class="panel-description">As últimas notificações criadas no sistema.</div>
-              </div>
-
-              <div class="table-wrapper">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Canal</th>
-                      <th>Status</th>
-                      <th>Quando</th>
-                    </tr>
-                  </thead>
-                  <tbody id="overview-rows"></tbody>
-                </table>
-              </div>
-            </div>
-
-          </div>
-        </div>
-
         <!-- ===== VIEW: ENVIAR ===== -->
 
-        <div class="view" id="view-send">
+        <div class="view active" id="view-send">
           <div class="content-inner">
 
             <div class="welcome">
@@ -1256,19 +1207,6 @@
                 <div class="attachment-error" id="attachment-error"></div>
 
 
-                <label for="table-input">
-                  Tabela
-                  <span class="badge">opcional</span>
-                </label>
-                <textarea id="table-input" placeholder="Nome, Status&#10;João, Aprovado&#10;Maria, Pendente"></textarea>
-                <label class="checkbox-label">
-                  <input type="checkbox" id="table-has-header" checked>
-                  Primeira linha é o cabeçalho
-                </label>
-                <p class="hint">Uma linha por linha da tabela, células separadas por vírgula. Teams e e-mail (Gmail/Outlook) mostram uma tabela de verdade; os demais canais recebem uma versão em texto alinhado.</p>
-                <div class="attachment-error" id="table-error"></div>
-
-
                 <button type="submit" class="primary" id="submit-btn">Enviar notificação</button>
 
               </form>
@@ -1287,7 +1225,12 @@
 
             <div class="welcome">
               <h1>Dashboard</h1>
-              <p>Todas as notificações, com filtro por status e canal.</p>
+              <p>Acompanhe, num único lugar, o que já foi enviado, o que está em andamento e o que precisa da sua
+                atenção.</p>
+            </div>
+
+            <div class="quick-actions">
+              <button class="btn-secondary" type="button" data-goto="send">Enviar notificação</button>
             </div>
 
             <div class="stats" id="stats"></div>
@@ -1337,42 +1280,6 @@
           </div>
         </div>
 
-        <!-- ===== VIEW: PROMETHEUS / MÉTRICAS ===== -->
-
-        <div class="view" id="view-metrics">
-          <div class="content-inner wide">
-
-            <div class="welcome">
-              <h1>Prometheus</h1>
-              <p>Status técnico do sistema. Os painéis detalhados (contadores, séries temporais) ficam disponíveis nos
-                links avançados abaixo, voltados para quem cuida da parte técnica.</p>
-            </div>
-
-            <div class="stats" id="health-stats"></div>
-
-            <div class="panel">
-              <div class="panel-header">
-                <div class="panel-title">Painéis técnicos avançados</div>
-                <div class="panel-description">Contadores, histogramas de latência e séries temporais — para times de
-                  engenharia.</div>
-              </div>
-
-              <div class="advanced-links">
-                <a class="header-link" href="http://localhost:9090" target="_blank" rel="noopener">
-                  ◎ <span class="link-label">Prometheus (consulta e gráficos)</span>
-                </a>
-                <a class="header-link" href="http://localhost:8080/metrics" target="_blank" rel="noopener">
-                  ≡ <span class="link-label">Métricas cruas da API</span>
-                </a>
-                <a class="header-link" href="http://localhost:9091/metrics" target="_blank" rel="noopener">
-                  ≡ <span class="link-label">Métricas cruas do Worker</span>
-                </a>
-              </div>
-            </div>
-
-          </div>
-        </div>
-
       </section>
 
     </main>
@@ -1409,6 +1316,30 @@
       return STATUS_LABELS[status] || status;
     }
 
+    /* ===== TEMA CLARO/ESCURO ===== */
+
+    function currentTheme() {
+      const explicit = document.documentElement.getAttribute("data-theme");
+      if (explicit === "dark" || explicit === "light") return explicit;
+      return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+
+    function updateThemeToggleIcons() {
+      const icon = currentTheme() === "dark" ? "☀" : "☾";
+      document.querySelectorAll(".theme-toggle-btn").forEach(btn => { btn.textContent = icon; });
+    }
+
+    document.querySelectorAll(".theme-toggle-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const next = currentTheme() === "dark" ? "light" : "dark";
+        document.documentElement.setAttribute("data-theme", next);
+        try { localStorage.setItem("theme", next); } catch (e) { /* localStorage indisponível */ }
+        updateThemeToggleIcons();
+      });
+    });
+
+    updateThemeToggleIcons();
+
     /* ===== MENU MOBILE ===== */
 
     const sidebar = document.getElementById("sidebar");
@@ -1432,17 +1363,13 @@
 
     const navButtons = document.querySelectorAll(".nav-item[data-view]");
     const views = {
-      overview: document.getElementById("view-overview"),
       send: document.getElementById("view-send"),
-      dashboard: document.getElementById("view-dashboard"),
-      metrics: document.getElementById("view-metrics")
+      dashboard: document.getElementById("view-dashboard")
     };
 
     const headerConfig = {
-      overview: { title: "Overview", description: "Resumo das notificações e do status do sistema" },
       send: { title: "Enviar", description: "Enviar uma nova notificação" },
-      dashboard: { title: "Dashboard", description: "Todas as notificações, com filtro por status e canal" },
-      metrics: { title: "Prometheus", description: "Status técnico e painéis avançados" }
+      dashboard: { title: "Dashboard", description: "Todas as notificações, com filtro por status e canal" }
     };
 
     function switchView(name) {
@@ -1455,7 +1382,6 @@
       closeSidebar();
 
       if (name === "dashboard") refreshDashboard();
-      if (name === "overview") refreshOverview();
     }
 
     navButtons.forEach(btn => {
@@ -1478,9 +1404,6 @@
     const templateParamsInput = document.getElementById("template-params");
     const messageLabel = document.getElementById("message-label");
     const messageHint = document.getElementById("message-hint");
-    const tableInput = document.getElementById("table-input");
-    const tableHasHeaderInput = document.getElementById("table-has-header");
-    const tableError = document.getElementById("table-error");
     const form = document.getElementById("form");
     const result = document.getElementById("result");
     const submitBtn = document.getElementById("submit-btn");
@@ -1652,26 +1575,6 @@
       attachmentError.textContent = "";
     }
 
-    /* ===== TABELA (CSV simples: uma linha por linha, células por vírgula) ===== */
-
-    // Retorna null se o campo estiver vazio, {headers, rows} se válido, ou
-    // undefined se houver uma linha sem nenhuma célula (entrada inválida).
-    function parseTable(raw, hasHeader) {
-      const lines = raw.split("\n").map(l => l.trim()).filter(l => l.length > 0);
-      if (lines.length === 0) return null;
-
-      const parsed = lines.map(line => line.split(",").map(cell => cell.trim()));
-      if (parsed.some(cells => cells.length === 0 || (cells.length === 1 && cells[0] === ""))) {
-        return undefined;
-      }
-
-      if (hasHeader) {
-        const [headers, ...rows] = parsed;
-        return { headers, rows };
-      }
-      return { rows: parsed };
-    }
-
     /* ===== ENVIO ===== */
 
     form.addEventListener("submit", async (e) => {
@@ -1684,15 +1587,8 @@
       const templateName = templateNameInput.value.trim();
       const templateParamsRaw = templateParamsInput.value.trim();
 
-      tableError.textContent = "";
-      const table = parseTable(tableInput.value, tableHasHeaderInput.checked);
-      if (table === undefined) {
-        tableError.textContent = "Tabela inválida: todas as linhas precisam ter pelo menos uma célula.";
-        return;
-      }
-
-      if (!message && attachments.length === 0 && !templateName && !table) {
-        showResult("error", "Escreva uma mensagem, informe um template, uma tabela ou anexe ao menos um arquivo antes de enviar.");
+      if (!message && attachments.length === 0 && !templateName) {
+        showResult("error", "Escreva uma mensagem, informe um template ou anexe ao menos um arquivo antes de enviar.");
         return;
       }
 
@@ -1705,7 +1601,6 @@
           body.template_params = templateParamsRaw.split(",").map(p => p.trim());
         }
       }
-      if (table) body.table = table;
       if (attachments.length > 0) {
         body.attachments = attachments.map(a => ({
           filename: a.filename,
@@ -1733,8 +1628,6 @@
           document.getElementById("message").value = "";
           templateNameInput.value = "";
           templateParamsInput.value = "";
-          tableInput.value = "";
-          tableError.textContent = "";
           resetAttachments();
         }
       } catch (err) {
@@ -1750,7 +1643,7 @@
       result.textContent = text;
     }
 
-    /* ===== ESTATÍSTICAS (compartilhado entre Overview e Dashboard) ===== */
+    /* ===== ESTATÍSTICAS ===== */
 
     function renderStatCards(container, s) {
       container.innerHTML = `
@@ -1773,35 +1666,6 @@
 
     function shortId(id) {
       return id.slice(0, 8) + "…";
-    }
-
-    /* ===== OVERVIEW ===== */
-
-    const overviewStatsEl = document.getElementById("overview-stats");
-    const overviewRowsEl = document.getElementById("overview-rows");
-
-    async function refreshOverview() {
-      const stats = await fetchStats();
-      renderStatCards(overviewStatsEl, stats);
-
-      const res = await fetch(`${API_BASE}/api/v1/notifications?limit=5`);
-      const items = await res.json();
-
-      if (!items || items.length === 0) {
-        overviewRowsEl.innerHTML = `<tr><td colspan="3" class="empty-row">Nenhuma notificação enviada ainda.</td></tr>`;
-        return;
-      }
-
-      overviewRowsEl.innerHTML = items.map(n => {
-        const validStatus = ["pending", "success", "retrying", "dlq"].includes(n.status) ? n.status : "pending";
-        return `
-        <tr>
-          <td>${escapeHtml(n.channel)}</td>
-          <td><span class="status-badge ${validStatus}">${escapeHtml(statusLabel(n.status))}</span></td>
-          <td>${escapeHtml(fmtDate(n.created_at))}</td>
-        </tr>
-      `;
-      }).join("");
     }
 
     /* ===== DASHBOARD ===== */
@@ -1876,22 +1740,18 @@
 
     setInterval(() => {
       if (views.dashboard.classList.contains("active")) refreshDashboard();
-      if (views.overview.classList.contains("active")) refreshOverview();
     }, 15000);
 
-    /* ===== STATUS DO SISTEMA (sidebar + Prometheus) ===== */
+    /* ===== STATUS DO SISTEMA (sidebar) ===== */
 
     async function checkSystemHealth() {
       const dot = document.getElementById("sidebar-status-dot");
       const text = document.getElementById("sidebar-status-text");
-      const healthStats = document.getElementById("health-stats");
 
-      let data = null;
       let ok = false;
-
       try {
         const res = await fetch(`${API_BASE}/health/ready`);
-        data = await res.json();
+        const data = await res.json();
         ok = res.ok && data.postgres === "ok" && data.redis === "ok";
       } catch {
         ok = false;
@@ -1899,17 +1759,6 @@
 
       dot.className = "status-dot " + (ok ? "online" : "offline");
       text.textContent = ok ? "Sistema operacional" : "Sistema com instabilidade";
-
-      if (healthStats) {
-        const dbOk = data && data.postgres === "ok";
-        const queueOk = data && data.redis === "ok";
-
-        healthStats.innerHTML = `
-          <div class="stat-card"><div class="value ${ok ? "ok" : "fail"}">${ok ? "Operacional" : "Instável"}</div><div class="label">API</div></div>
-          <div class="stat-card"><div class="value ${data ? (dbOk ? "ok" : "fail") : "fail"}">${data ? (dbOk ? "Operacional" : "Instável") : "Indisponível"}</div><div class="label">Banco de dados</div></div>
-          <div class="stat-card"><div class="value ${data ? (queueOk ? "ok" : "fail") : "fail"}">${data ? (queueOk ? "Operacional" : "Instável") : "Indisponível"}</div><div class="label">Fila de mensagens</div></div>
-        `;
-      }
     }
 
     checkSystemHealth();
@@ -1917,7 +1766,7 @@
 
     /* ===== CARGA INICIAL ===== */
 
-    refreshOverview();
+    refreshDashboard();
   </script>
 
 </body>

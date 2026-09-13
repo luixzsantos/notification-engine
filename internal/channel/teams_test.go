@@ -87,6 +87,32 @@ func TestBuildAdaptiveCardEnvelope_WithTable(t *testing.T) {
 	}
 }
 
+func TestBuildMessageBlocks_HeadingsGetOwnTextBlockWithSize(t *testing.T) {
+	blocks := buildMessageBlocks("# Título\ntexto do parágrafo\n## Sub")
+
+	if len(blocks) != 3 {
+		t.Fatalf("esperava 3 blocks (h1, parágrafo, h2), obteve %d: %+v", len(blocks), blocks)
+	}
+	if blocks[0]["text"] != "Título" || blocks[0]["size"] != "ExtraLarge" || blocks[0]["weight"] != "Bolder" {
+		t.Errorf("block de h1 incorreto: %+v", blocks[0])
+	}
+	if blocks[1]["text"] != "texto do parágrafo" {
+		t.Errorf("block de parágrafo incorreto: %+v", blocks[1])
+	}
+	if _, hasWeight := blocks[1]["weight"]; hasWeight {
+		t.Errorf("parágrafo comum não deveria ter weight forçado: %+v", blocks[1])
+	}
+	if blocks[2]["text"] != "Sub" || blocks[2]["size"] != "Large" {
+		t.Errorf("block de h2 incorreto: %+v", blocks[2])
+	}
+}
+
+func TestBuildMessageBlocks_Empty(t *testing.T) {
+	if blocks := buildMessageBlocks(""); blocks != nil {
+		t.Errorf("esperava nil para mensagem vazia, obteve %+v", blocks)
+	}
+}
+
 func TestTeamsSender_Send_Success(t *testing.T) {
 	var capturedBody map[string]any
 	var capturedContentType string

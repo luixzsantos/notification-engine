@@ -249,20 +249,31 @@ func (s *NotificationService) build(input CreateNotificationInput) *domain.Notif
 		target = s.defaultTargets[input.Channel]
 	}
 
+	// Permite escrever "/h1 texto", "/h2 texto", "/h3 texto" e um bloco
+	// "/table" diretamente dentro da mensagem (estilo Notion) em vez de
+	// exigir um campo "table" estruturado à parte. Se o cliente já enviou
+	// um Table explícito no input, ele prevalece sobre o que for encontrado
+	// na mensagem.
+	message, parsedTable := domain.ParseRichMessage(input.Message)
+	table := input.Table
+	if table == nil {
+		table = parsedTable
+	}
+
 	return &domain.Notification{
 		ID:             uuid.NewString(),
 		IdempotencyKey: input.IdempotencyKey,
 		Channel:        input.Channel,
 		Target:         target,
 		Subject:        input.Subject,
-		Message:        input.Message,
+		Message:        message,
 		Payload:        input.Payload,
 		Headers:        input.Headers,
 		Attachments:    input.Attachments,
 		TemplateName:   input.TemplateName,
 		TemplateLocale: input.TemplateLocale,
 		TemplateParams: input.TemplateParams,
-		Table:          input.Table,
+		Table:          table,
 		Status:         domain.StatusPending,
 		MaxAttempts:    s.maxAttempts,
 		CreatedAt:      now,

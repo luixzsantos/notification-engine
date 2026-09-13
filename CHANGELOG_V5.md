@@ -20,9 +20,12 @@ Teams) passou a rodar também na criação da notificação, não só no envio.
   rodam na criação (antes só rodavam no envio) — um host errado é
   rejeitado com 400 na hora, em vez de gastar 5 tentativas de retry até
   cair em DLQ
-- ✅ `main.html` atualizado: Teams no seletor de canal, campo de tabela
-  (CSV simples) no formulário de envio
-- ✅ Testes unitários para o novo canal e para `domain.Table`
+- ✅ **Sintaxe embutida na mensagem** (estilo Notion): `/h1`/`/h2`/`/h3`
+  viram título, um bloco `/table` vira `domain.Table` — sem precisar de
+  campo separado; `main.html` ficou com um único campo de mensagem em vez
+  de "Mensagem" + "Tabela"
+- ✅ Testes unitários para o novo canal, para `domain.Table` e para o
+  parsing da sintaxe embutida
 - ✅ Validado manualmente contra o endpoint real do Azure Logic Apps (sem
   um Workflow configurado): a requisição chega corretamente formatada e o
   Azure responde com um erro real (`MissingApiVersionParameter`), não um
@@ -109,6 +112,32 @@ desiguais e escaping de HTML) e para a validação aceitar `Table` sem
 correção do item 3 (rejeição na criação para Discord e Teams).
 
 ---
+
+### 6. Título e tabela embutidos na mensagem (sintaxe estilo Notion)
+
+O campo `table` estruturado (item 2 acima) continua existindo — é o
+contrato certo para quem integra programaticamente — mas passou a ser
+opcional na prática: `domain.ParseRichMessage` interpreta uma sintaxe leve
+diretamente no texto de `Message`, então quem escreve a notificação (o
+formulário em `main.html`, ou qualquer cliente) não precisa mais de um
+campo separado.
+
+- `/h1 texto`, `/h2 texto`, `/h3 texto` numa linha viram título (o marcador
+  some, o texto é normalizado pro Markdown canônico `#`/`##`/`###`); uma
+  mensagem sem nenhum marcador continua idêntica a antes.
+- Um bloco `/table` (uma linha por linha, células separadas por vírgula,
+  terminando na primeira linha em branco ou no fim da mensagem) vira um
+  `domain.Table`, exatamente como o campo `table` explícito — se ambos
+  estiverem presentes, o campo explícito prevalece.
+- O parsing roda uma única vez, na criação da notificação
+  (`service.NotificationService.build`); o que é persistido e enfileirado
+  já é a forma final.
+- Título ganhou renderização própria por canal: nativa no Discord (que já
+  entende `#`/`##`/`###`), negrito no Telegram/WhatsApp, `<h1>`/`<h2>`/
+  `<h3>` reais no e-mail, e um `TextBlock` dedicado (com tamanho/negrito
+  proporcional ao nível) por título no Adaptive Card do Teams.
+- `main.html`: o campo "Tabela" separado foi removido — um único campo de
+  mensagem, com uma dica explicando a sintaxe.
 
 ## 📜 Licença
 

@@ -232,7 +232,16 @@ Veja todos os detalhes em [`.env.example`](.env.example). Resumo:
 {"channel":"teams","target":"https://prod-00.westus.logic.azure.com/workflows/.../triggers/manual/paths/invoke","message":"Alerta de sistema"}
 ```
 
-**Tabela** (opcional, em qualquer canal — Teams e e-mail mostram uma tabela de verdade; Discord/Telegram/WhatsApp recebem uma versão em texto alinhado):
+**Título e tabela dentro da mensagem** (sintaxe leve, estilo Notion — funciona em qualquer canal, sem nenhum campo extra no JSON). Uma linha começando com `/h1 `, `/h2 ` ou `/h3 ` vira um título; um bloco `/table` (uma linha por linha da tabela, células separadas por vírgula, terminando na primeira linha em branco) vira uma tabela. Teams e e-mail (Gmail/Outlook) renderizam título e tabela como elementos de verdade; Discord entende título nativamente; Telegram/WhatsApp recebem negrito e texto alinhado:
+```json
+{
+  "channel": "teams",
+  "target": "https://prod-00.westus.logic.azure.com/workflows/.../triggers/manual/paths/invoke",
+  "message": "/h1 Resumo semanal de aprovações\n/table\nNome, Status\nJoão, Aprovado\nMaria, Pendente"
+}
+```
+
+Também é possível enviar a tabela já estruturada, sem depender do parsing do texto (o campo `table`, se presente, tem prioridade sobre um eventual bloco `/table` na mensagem):
 ```json
 {
   "channel": "teams",
